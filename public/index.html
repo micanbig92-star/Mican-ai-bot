@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,7 +18,7 @@ input,textarea{background:#f1f5f9;color:#111}
 button{background:#08a9d6;color:white;font-weight:bold;cursor:pointer}
 button.secondary{background:#40516a}
 #messages{height:320px;overflow:auto;background:#0c1422;padding:12px;border-radius:10px}
-.msg{padding:10px;margin:8px 0;border-radius:9px;background:#263b55}
+.msg{padding:10px;margin:8px 0;border-radius:9px;background:#263b55;white-space:pre-wrap}
 .user{background:#075b75}
 .small{color:#b9c7d8;font-size:13px}
 .hidden{display:none}
@@ -66,7 +67,7 @@ button.secondary{background:#40516a}
 
 <script>
 const SUPABASE_URL = "https://qecwutjstselkypoppuj.supabase.co";
-const SUPABASE_KEY = "sb_publishable_qen-gTBWNSvaBp8AHZ936A_tnPvpYe9";
+const SUPABASE_KEY = "sb_publishable_QJZxU1YGjui16G_ldefs_A_Ea4TuTT1";
 const ADMIN_EMAIL = "itzmican42@gmail.com";
 
 const db = supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -93,7 +94,12 @@ async function loadReplies(){
   const {data,error}=await db.from("mican_replies")
     .select("*").eq("active",true);
 
-  if(!error) replies=data||[];
+  if(error){
+    console.error("Could not load replies:",error.message);
+    return;
+  }
+
+  replies=data||[];
 }
 
 async function askMican(){
@@ -141,6 +147,10 @@ async function askMican(){
   }
 }
 
+document.getElementById("question").addEventListener("keydown",e=>{
+  if(e.key==="Enter")askMican();
+});
+
 function showAdmin(){
   document.getElementById("adminLogin").classList.toggle("hidden");
 }
@@ -159,7 +169,8 @@ async function login(){
     return;
   }
 
-  if(data.user.email.toLowerCase()!==ADMIN_EMAIL.toLowerCase()){
+  if(!data.user.email||
+     data.user.email.toLowerCase()!==ADMIN_EMAIL.toLowerCase()){
     await db.auth.signOut();
     status.textContent="This account is not authorised as MICAN admin.";
     return;
@@ -240,7 +251,6 @@ async function saveReply(){
   }
 
   editingId=null;
-
   document.getElementById("savedQuestion").value="";
   document.getElementById("savedAnswer").value="";
 
@@ -270,7 +280,6 @@ async function deleteReply(id){
 
 async function logout(){
   await db.auth.signOut();
-
   document.getElementById("adminPanel").classList.add("hidden");
   alert("Logged out.");
 }
