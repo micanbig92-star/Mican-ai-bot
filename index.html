@@ -1,1 +1,26 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MICAN</title><style>body{margin:0;background:#0b1220;color:#eef3ff;font:16px system-ui}.wrap{max-width:760px;margin:auto;min-height:100vh;padding:20px;display:flex;flex-direction:column}header{padding:18px 0;border-bottom:1px solid #344}main{flex:1}.welcome,.bot{background:#17263c;padding:18px;border-radius:16px;margin:18px 0}.user{background:#245bd5;padding:14px;border-radius:14px;margin:10px 0 auto auto;max-width:85%}form{display:flex;gap:8px}input{flex:1;min-width:0;padding:14px;border-radius:12px;border:0}button{padding:12px 20px;background:#2c70f0;color:white;border:0;border-radius:12px}</style></head><body><div class="wrap"><header><b>🟦 MICAN</b><div>Your all-in-one assistant</div></header><main><section class="welcome"><h2>Welcome to MICAN 👋</h2><p>The website starter is ready. AI replies need secure provider configuration.</p></section><div id="chat"><div class="bot">Hi! I'm MICAN. What can I help you with?</div></div></main><form id="f"><input id="m" placeholder="Message MICAN..."><button>Send</button></form></div><script>f.onsubmit=async e=>{e.preventDefault();let v=m.value.trim();if(!v)return;let u=document.createElement('div');u.className='user';u.textContent=v;chat.append(u);m.value='';let b=document.createElement('div');b.className='bot';b.textContent='MICAN website is running. AI service setup is still required.';chat.append(b)}</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MICAN AI</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b1220;color:#eef3ff;font:16px system-ui}.wrap{max-width:760px;margin:auto;min-height:100vh;padding:20px;display:flex;flex-direction:column}header{padding:18px 0;border-bottom:1px solid #344}header b{font-size:23px}header div{color:#aebbd0}main{flex:1;padding:12px 0}.welcome,.bot{background:#17263c;padding:16px;border-radius:16px;margin:14px 0;line-height:1.5}.user{background:#245bd5;padding:14px;border-radius:14px;margin:10px 0 10px auto;max-width:88%;line-height:1.5;white-space:pre-wrap}.bot{white-space:pre-wrap}form{display:flex;gap:8px;position:sticky;bottom:0;background:#0b1220;padding:10px 0}input{flex:1;min-width:0;padding:14px;border-radius:12px;border:1px solid #344;background:#fff;color:#111;font-size:16px}button{padding:12px 20px;background:#2c70f0;color:white;border:0;border-radius:12px;font-size:16px}button:disabled{opacity:.6}
+</style>
+</head>
+<body><div class="wrap">
+<header><b>🟦 MICAN</b><div>Your all-in-one AI assistant</div></header>
+<main><section class="welcome"><h2>Welcome to MICAN 👋</h2><p>Ask me a question and I'll do my best to help.</p></section>
+<div id="chat"><div class="bot">Hi! I'm MICAN. What can I help you with?</div></div></main>
+<form id="form"><input id="message" maxlength="4000" placeholder="Message MICAN..." autocomplete="off" required><button id="send" type="submit">Send</button></form>
+</div>
+<script>
+const form=document.getElementById('form'), input=document.getElementById('message'), chat=document.getElementById('chat'), send=document.getElementById('send');
+form.addEventListener('submit',async e=>{e.preventDefault();const message=input.value.trim();if(!message)return;
+const user=document.createElement('div');user.className='user';user.textContent=message;chat.appendChild(user);input.value='';send.disabled=true;send.textContent='...';
+const waiting=document.createElement('div');waiting.className='bot';waiting.textContent='MICAN is thinking...';chat.appendChild(waiting);
+try{const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message})});const data=await response.json();waiting.textContent=data.reply||'Sorry, I could not reply.';}
+catch(error){waiting.textContent='Connection problem. Please try again.';}
+finally{send.disabled=false;send.textContent='Send';input.focus();}
+});
+</script></body></html>
