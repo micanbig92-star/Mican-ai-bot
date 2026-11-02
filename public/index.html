@@ -5,27 +5,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MICAN AI</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#101827;color:white;font-family:Arial,sans-serif}
-header{padding:20px;background:#17243a;text-align:center}
-header h1{color:#50d6ff;margin:0}
-main{max-width:700px;margin:25px auto;padding:15px}
-.panel{background:#1b2b43;padding:18px;border-radius:14px;margin-bottom:15px}
-input,textarea,button{width:100%;padding:13px;margin:7px 0;border:0;border-radius:8px;font-size:15px}
-input,textarea{background:#f1f5f9;color:#111}
+header{padding:24px 15px;background:#17243a;text-align:center}
+header h1{color:#50d6ff;margin:0;font-size:30px}
+header p{color:#cbd5e1}
+main{max-width:760px;margin:20px auto;padding:12px}
+.panel{background:#1b2b43;padding:17px;border-radius:14px;margin-bottom:16px}
+input,textarea,select,button{width:100%;padding:13px;margin:6px 0;border:0;border-radius:8px;font-size:15px}
+input,textarea,select{background:#f1f5f9;color:#111}
 button{background:#08a9d6;color:white;font-weight:bold;cursor:pointer}
 button.secondary{background:#40516a}
-#messages{height:320px;overflow:auto;background:#0c1422;padding:12px;border-radius:10px}
-.msg{padding:10px;margin:8px 0;border-radius:9px;background:#263b55;white-space:pre-wrap;overflow-wrap:anywhere}
+button.danger{background:#a83248}
+#messages{height:350px;overflow:auto;background:#0c1422;padding:12px;border-radius:10px}
+.msg{padding:11px;margin:9px 0;border-radius:10px;background:#263b55;white-space:pre-wrap;overflow-wrap:anywhere}
 .user{background:#075b75}
 .small{color:#b9c7d8;font-size:13px}
-.hidden{display:none}
-.reply{border-top:1px solid #40516a;padding:10px 0}
+.hidden{display:none!important}
+.reply{border-top:1px solid #40516a;padding:12px 0}
+.row{display:flex;gap:7px;align-items:center}
+.row>*{flex:1;min-width:0}
+.suggestions,.pills{display:flex;flex-wrap:wrap;gap:7px}
+.suggestions button,.pills button{width:auto;padding:9px 12px}
+.statgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.stat{background:#0c1422;padding:15px;border-radius:10px}
+.stat strong{display:block;color:#50d6ff;font-size:25px;margin-top:5px}
+#typing{color:#50d6ff;font-size:13px}
+footer{text-align:center;color:#9aabc0;padding:20px;font-size:12px}
 </style>
 </head>
-
 <body>
 
 <header>
@@ -34,22 +43,57 @@ button.secondary{background:#40516a}
 </header>
 
 <main>
-
 <section class="panel">
 <h3>Chat with MICAN</h3>
-<div id="messages"></div>
-<input id="question" placeholder="Ask MICAN anything...">
-<button onclick="askMican()">Send message</button>
-<p class="small">MICAN answers using information saved by its admin.</p>
+
+<div class="row">
+<button class="secondary" onclick="showHistory()">Chat history</button>
+<button class="secondary" onclick="clearHistory()">Clear history</button>
+</div>
+
+<div id="messages" aria-live="polite"></div>
+<p id="typing" class="hidden">MICAN is thinking...</p>
+
+<div class="row">
+<input id="question" placeholder="Ask MICAN anything..." autocomplete="off">
+<button style="max-width:90px" onclick="askMican()">Send</button>
+</div>
+
+<div class="row">
+<button class="secondary" onclick="startVoice()">🎤 Speak</button>
+<button class="secondary" onclick="stopVoice()">Stop voice</button>
+</div>
+<p id="voiceStatus" class="small">Voice input depends on browser support.</p>
+
+<h4>Suggested questions</h4>
+<div class="suggestions">
+<button onclick="useSuggestion('What can you help me with?')">What can you do?</button>
+<button onclick="useSuggestion('Tell me something interesting')">Fun facts</button>
+<button onclick="useSuggestion('How can I learn technology?')">Technology</button>
+<button onclick="useSuggestion('Give me study tips')">Study tips</button>
+</div>
+
+<h4>FAQ categories</h4>
+<div class="pills">
+<button class="secondary" onclick="filterCategory('all')">All</button>
+<button class="secondary" onclick="filterCategory('education')">Education</button>
+<button class="secondary" onclick="filterCategory('technology')">Technology</button>
+<button class="secondary" onclick="filterCategory('general')">General</button>
+</div>
+<div id="faqList"></div>
+
+<p class="small">
+MICAN currently answers using information saved by its admin.
+It does not yet generate unrestricted ChatGPT-style answers.
+</p>
 </section>
 
-<!-- ADMIN SECTION: HIDDEN BY DEFAULT -->
+<!-- ADMIN AREA -->
 <section id="adminSection" class="panel hidden">
-
 <button class="secondary" onclick="showAdmin()">Admin Login</button>
 
 <div id="adminLogin" class="hidden">
-<h3>MICAN Admin</h3>
+<h3>MICAN Admin Login</h3>
 <input id="email" type="email" placeholder="Admin email">
 <input id="password" type="password" placeholder="Admin password">
 <button onclick="login()">Login</button>
@@ -57,282 +101,530 @@ button.secondary{background:#40516a}
 </div>
 
 <div id="adminPanel" class="hidden">
-<h3>Manage MICAN Replies</h3>
-<p class="small">Only the authorised admin can manage saved answers.</p>
+<h3>MICAN Admin Dashboard</h3>
+<p class="small">Manage saved answers and review visitor activity.</p>
 
-<input id="savedQuestion" placeholder="Question visitors may ask">
-<textarea id="savedAnswer" rows="4" placeholder="MICAN's saved answer"></textarea>
-
-<button onclick="saveReply()">Save answer</button>
-<button class="secondary" onclick="logout()">Logout</button>
-
-<h3>Saved replies</h3>
-<div id="replyList"></div>
+<h4>Statistics</h4>
+<div class="statgrid">
+<div class="stat">Questions<strong id="totalQuestions">0</strong></div>
+<div class="stat">Helpful feedback<strong id="helpfulCount">0</strong></div>
+<div class="stat">Needs improvement<strong id="unhelpfulCount">0</strong></div>
+<div class="stat">Unanswered<strong id="unansweredCount">0</strong></div>
 </div>
 
+<button class="secondary" onclick="loadDashboard()">Refresh dashboard</button>
+
+<h4>Save a new answer</h4>
+<input id="savedQuestion" placeholder="Question visitors may ask">
+<textarea id="savedAnswer" rows="4" placeholder="MICAN's saved answer"></textarea>
+<button onclick="saveReply()">Save answer</button>
+<button class="secondary" onclick="cancelEdit()">Cancel editing</button>
+
+<h4>Saved replies</h4>
+<div id="replyList"></div>
+
+<h4>Visitor questions / unanswered inbox</h4>
+<div id="unansweredList"></div>
+
+<h4>Recent visitor feedback</h4>
+<div id="feedbackList"></div>
+
+<button class="danger" onclick="logout()">Logout</button>
+</div>
 </section>
 </main>
 
+<footer>MICAN AI · All-in-one assistant</footer>
+
 <script>
-/* MICAN AI SUPABASE CONNECTION */
-const SUPABASE_URL = "https://ozktfslqrqxdqkvgdlpn.supabase.co";
-const SUPABASE_KEY = "sb_publishable_qen-gTBWNSvaBp8AHZ936A_tnPvpYe9";
-const ADMIN_EMAIL = "itzmican42@gmail.com";
+const SUPABASE_URL="https://ozktfslqrqxdqkvgdlpn.supabase.co";
+const SUPABASE_KEY="sb_publishable_qen-gTBWNSvaBp8AHZ936A_tnPvpYe9";
+const ADMIN_EMAIL="itzmican42@gmail.com";
 
-const db = supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-let editingId = null;
-let replies = [];
+let replies=[];
+let editingId=null;
+let lastQuestion="";
+let currentCategory="all";
+let recognition=null;
 
-/* SHOW ADMIN SECTION ONLY WITH #admin */
 function revealAdminAccess(){
-  const section=document.getElementById("adminSection");
-
-  if(section && window.location.hash==="#admin"){
-    section.classList.remove("hidden");
-  }else if(section){
-    section.classList.add("hidden");
-  }
+ const section=document.getElementById("adminSection");
+ if(location.hash==="#admin"){
+  section.classList.remove("hidden");
+ }else{
+  section.classList.add("hidden");
+ }
 }
-
 window.addEventListener("hashchange",revealAdminAccess);
 revealAdminAccess();
 
-/* CHAT MESSAGES */
-function addMessage(text,who){
-  const box=document.getElementById("messages");
-  const item=document.createElement("div");
+/* CHAT HISTORY */
+const HISTORY_KEY="mican_chat_history_v2";
 
-  item.className="msg "+(who==="user"?"user":"");
-  item.textContent=(who==="user"?"You: ":"MICAN: ")+text;
-
-  box.appendChild(item);
-  box.scrollTop=box.scrollHeight;
+function getHistory(){
+ try{
+  return JSON.parse(localStorage.getItem(HISTORY_KEY)||"[]");
+ }catch(e){
+  return [];
+ }
 }
 
-/* NORMALISE QUESTIONS */
+function addMessage(text,who,save=true){
+ const box=document.getElementById("messages");
+ const item=document.createElement("div");
+ item.className="msg "+(who==="user"?"user":"");
+ item.textContent=(who==="user"?"You: ":"MICAN: ")+text;
+ box.appendChild(item);
+ box.scrollTop=box.scrollHeight;
+
+ if(save){
+  const history=getHistory();
+  history.push({text,who,time:new Date().toISOString()});
+  localStorage.setItem(HISTORY_KEY,JSON.stringify(history.slice(-100)));
+ }
+}
+
+function showHistory(){
+ const box=document.getElementById("messages");
+ box.replaceChildren();
+ getHistory().forEach(item=>addMessage(item.text,item.who,false));
+ if(!getHistory().length){
+  addMessage("Your chat history is empty.","bot",false);
+ }
+}
+
+function clearHistory(){
+ if(!confirm("Clear this browser's saved chat history?"))return;
+ localStorage.removeItem(HISTORY_KEY);
+ document.getElementById("messages").replaceChildren();
+ addMessage("Your chat history has been cleared.","bot");
+}
+
+/* SUGGESTIONS */
+function useSuggestion(question){
+ document.getElementById("question").value=question;
+ askMican();
+}
+
+/* CATEGORIES */
+function getCategory(question){
+ const q=question.toLowerCase();
+ if(/school|study|exam|math|science|education|learn|student|university/.test(q))return "education";
+ if(/phone|computer|technology|website|coding|app|internet|software|program/.test(q))return "technology";
+ return "general";
+}
+
+function filterCategory(category){
+ currentCategory=category;
+ renderFaq();
+}
+
+function renderFaq(){
+ const list=document.getElementById("faqList");
+ list.replaceChildren();
+
+ const filtered=replies.filter(r=>
+  currentCategory==="all"||getCategory(r.question)===currentCategory
+ );
+
+ filtered.slice(0,12).forEach(r=>{
+  const button=document.createElement("button");
+  button.className="secondary";
+  button.textContent=r.question;
+  button.onclick=()=>useSuggestion(r.question);
+  list.appendChild(button);
+ });
+
+ if(!filtered.length){
+  const p=document.createElement("p");
+  p.className="small";
+  p.textContent="No saved questions in this category yet.";
+  list.appendChild(p);
+ }
+}
+
+/* QUESTION MATCHING */
 function normalize(s){
-  return s.toLowerCase()
-    .replace(/[^a-z0-9 ]/g," ")
-    .replace(/\s+/g," ").trim();
+ return s.toLowerCase()
+  .replace(/[^a-z0-9 ]/g," ")
+  .replace(/\s+/g," ").trim();
 }
 
-/* LOAD SAVED ANSWERS */
 async function loadReplies(){
-  const {data,error}=await db.from("mican_replies")
-    .select("*").eq("active",true);
+ const {data,error}=await db.from("mican_replies")
+  .select("*").eq("active",true);
 
-  if(error){
-    console.error("Could not load replies:",error.message);
-    return;
-  }
+ if(error){
+  console.error(error.message);
+  return;
+ }
 
-  replies=data||[];
+ replies=data||[];
+ renderFaq();
+}
+
+/* RECORD VISITOR QUESTION */
+async function recordQuestion(question){
+ const {error}=await db.from("mican_activity").insert({
+  activity_type:"question",
+  question:question
+ });
+ if(error)console.error("Activity recording error:",error.message);
+}
+
+/* FEEDBACK */
+async function sendFeedback(value){
+ if(!lastQuestion){
+  alert("Ask MICAN a question first.");
+  return;
+ }
+
+ const {error}=await db.from("mican_activity").insert({
+  activity_type:"feedback",
+  question:lastQuestion,
+  feedback:value
+ });
+
+ if(error){
+  alert("Feedback could not be sent.");
+  console.error(error.message);
+  return;
+ }
+
+ addMessage("Thanks for your feedback!","bot");
 }
 
 /* ASK MICAN */
 async function askMican(){
-  const field=document.getElementById("question");
-  const q=field.value.trim();
+ const field=document.getElementById("question");
+ const q=field.value.trim();
+ if(!q)return;
 
-  if(!q)return;
+ field.value="";
+ addMessage(q,"user");
+ lastQuestion=q;
 
-  field.value="";
-  addMessage(q,"user");
+ document.getElementById("typing").classList.remove("hidden");
 
-  await loadReplies();
+ await recordQuestion(q);
+ await loadReplies();
 
-  const query=normalize(q);
-  let best=null;
-  let bestScore=0;
+ const query=normalize(q);
+ let best=null;
+ let bestScore=0;
 
-  for(const r of replies){
-    const saved=normalize(r.question);
-    let score=0;
+ for(const r of replies){
+  const saved=normalize(r.question);
+  let score=0;
 
-    if(query===saved){
-      score=100;
-    }else if(query.includes(saved)||saved.includes(query)){
-      score=75;
-    }else{
-      const words=saved.split(" ");
-      const matches=words.filter(w=>w.length>2&&query.includes(w));
-      score=(matches.length/Math.max(words.length,1))*100;
-    }
-
-    if(score>bestScore){
-      bestScore=score;
-      best=r;
-    }
-  }
-
-  if(best&&bestScore>=45){
-    addMessage(best.answer,"bot");
+  if(query===saved){
+   score=100;
+  }else if(query.includes(saved)||saved.includes(query)){
+   score=75;
   }else{
-    addMessage(
-      "I don't have a saved answer for that yet. Please contact the MICAN admin so this answer can be added.",
-      "bot"
-    );
+   const words=saved.split(" ");
+   const matches=words.filter(w=>w.length>2&&query.includes(w));
+   score=(matches.length/Math.max(words.length,1))*100;
   }
+
+  if(score>bestScore){
+   bestScore=score;
+   best=r;
+  }
+ }
+
+ document.getElementById("typing").classList.add("hidden");
+
+ if(best&&bestScore>=45){
+  addMessage(best.answer,"bot");
+
+  const feedback=document.createElement("div");
+  feedback.className="suggestions";
+
+  const yes=document.createElement("button");
+  yes.className="secondary";
+  yes.textContent="👍 Helpful";
+  yes.onclick=()=>sendFeedback("helpful");
+
+  const no=document.createElement("button");
+  no.className="secondary";
+  no.textContent="👎 Not helpful";
+  no.onclick=()=>sendFeedback("not_helpful");
+
+  feedback.append(yes,no);
+  document.getElementById("messages").appendChild(feedback);
+ }else{
+  addMessage("I don't have a saved answer for that yet. Your question has been sent to the admin inbox for review.","bot");
+ }
 }
 
 document.getElementById("question").addEventListener("keydown",e=>{
-  if(e.key==="Enter")askMican();
+ if(e.key==="Enter")askMican();
 });
 
-/* ADMIN LOGIN BUTTON */
+/* VOICE INPUT */
+function startVoice(){
+ const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+
+ if(!SpeechRecognition){
+  document.getElementById("voiceStatus").textContent="Voice input is not supported here. Try Chrome.";
+  return;
+ }
+
+ recognition=new SpeechRecognition();
+ recognition.lang="en-NG";
+ recognition.interimResults=false;
+ recognition.maxAlternatives=1;
+
+ recognition.onstart=()=>{
+  document.getElementById("voiceStatus").textContent="Listening...";
+ };
+
+ recognition.onresult=event=>{
+  document.getElementById("question").value=event.results[0][0].transcript;
+  document.getElementById("voiceStatus").textContent="Voice captured. Tap Send.";
+ };
+
+ recognition.onerror=event=>{
+  document.getElementById("voiceStatus").textContent="Voice input error: "+event.error;
+ };
+
+ recognition.onend=()=>{recognition=null;};
+ recognition.start();
+}
+
+function stopVoice(){
+ if(recognition)recognition.stop();
+ document.getElementById("voiceStatus").textContent="Voice input stopped.";
+}
+
+/* ADMIN LOGIN */
 function showAdmin(){
-  document.getElementById("adminLogin").classList.toggle("hidden");
+ document.getElementById("adminLogin").classList.toggle("hidden");
 }
 
-/* ADMIN AUTHENTICATION */
 async function login(){
-  const email=document.getElementById("email").value.trim();
-  const password=document.getElementById("password").value;
-  const status=document.getElementById("loginStatus");
+ const email=document.getElementById("email").value.trim();
+ const password=document.getElementById("password").value;
+ const status=document.getElementById("loginStatus");
 
-  status.textContent="Checking login...";
+ status.textContent="Checking login...";
 
-  if(!email||!password){
-    status.textContent="Enter your email and password.";
-    return;
-  }
+ if(!email||!password){
+  status.textContent="Enter your email and password.";
+  return;
+ }
 
-  const {data,error}=await db.auth.signInWithPassword({
-    email,password
-  });
+ const {data,error}=await db.auth.signInWithPassword({email,password});
 
-  if(error){
-    status.textContent=error.message;
-    return;
-  }
+ if(error){
+  status.textContent=error.message;
+  return;
+ }
 
-  if(!data.user.email||
-     data.user.email.toLowerCase()!==ADMIN_EMAIL.toLowerCase()){
-    await db.auth.signOut();
-    status.textContent="This account is not authorised as MICAN admin.";
-    return;
-  }
+ if(!data.user.email||data.user.email.toLowerCase()!==ADMIN_EMAIL.toLowerCase()){
+  await db.auth.signOut();
+  status.textContent="This account is not authorised as MICAN admin.";
+  return;
+ }
 
-  document.getElementById("adminLogin").classList.add("hidden");
-  document.getElementById("adminPanel").classList.remove("hidden");
+ document.getElementById("adminLogin").classList.add("hidden");
+ document.getElementById("adminPanel").classList.remove("hidden");
 
-  await loadAdminReplies();
+ await loadAdminReplies();
+ await loadDashboard();
 }
 
-/* LOAD ADMIN REPLIES */
+/* ADMIN REPLIES */
 async function loadAdminReplies(){
-  const {data,error}=await db.from("mican_replies")
-    .select("*").order("created_at",{ascending:false});
+ const {data,error}=await db.from("mican_replies")
+  .select("*").order("created_at",{ascending:false});
 
-  if(error){
-    alert("Could not load saved replies: "+error.message);
-    return;
-  }
+ if(error){
+  alert("Could not load saved replies: "+error.message);
+  return;
+ }
 
-  const list=document.getElementById("replyList");
-  list.replaceChildren();
+ const list=document.getElementById("replyList");
+ list.replaceChildren();
 
-  (data||[]).forEach(r=>{
-    const item=document.createElement("div");
-    item.className="reply";
+ (data||[]).forEach(r=>{
+  const item=document.createElement("div");
+  item.className="reply";
 
-    const q=document.createElement("p");
-    q.textContent="Question: "+r.question;
+  const q=document.createElement("p");
+  q.textContent="Question: "+r.question;
 
-    const a=document.createElement("p");
-    a.textContent="Answer: "+r.answer;
+  const a=document.createElement("p");
+  a.textContent="Answer: "+r.answer;
 
-    const edit=document.createElement("button");
-    edit.textContent="Edit";
-    edit.onclick=()=>editReply(r);
+  const edit=document.createElement("button");
+  edit.textContent="Edit";
+  edit.onclick=()=>editReply(r);
 
-    const del=document.createElement("button");
-    del.textContent="Delete";
-    del.className="secondary";
-    del.onclick=()=>deleteReply(r.id);
+  const del=document.createElement("button");
+  del.textContent="Delete";
+  del.className="danger";
+  del.onclick=()=>deleteReply(r.id);
 
-    item.append(q,a,edit,del);
-    list.appendChild(item);
-  });
+  item.append(q,a,edit,del);
+  list.appendChild(item);
+ });
 }
 
 /* SAVE ANSWER */
 async function saveReply(){
-  const question=document.getElementById("savedQuestion").value.trim();
-  const answer=document.getElementById("savedAnswer").value.trim();
+ const question=document.getElementById("savedQuestion").value.trim();
+ const answer=document.getElementById("savedAnswer").value.trim();
 
-  if(!question||!answer){
-    alert("Enter both a question and an answer.");
-    return;
-  }
+ if(!question||!answer){
+  alert("Enter both a question and an answer.");
+  return;
+ }
 
-  let result;
+ let result;
 
-  if(editingId){
-    result=await db.from("mican_replies")
-      .update({
-        question,
-        answer,
-        updated_at:new Date().toISOString()
-      })
-      .eq("id",editingId);
-  }else{
-    result=await db.from("mican_replies").insert({
-      question,
-      answer,
-      active:true
-    });
-  }
+ if(editingId){
+  result=await db.from("mican_replies")
+   .update({question,answer,updated_at:new Date().toISOString()})
+   .eq("id",editingId);
+ }else{
+  result=await db.from("mican_replies").insert({
+   question,answer,active:true
+  });
+ }
 
-  if(result.error){
-    alert("Could not save: "+result.error.message);
-    return;
-  }
+ if(result.error){
+  alert("Could not save: "+result.error.message);
+  return;
+ }
 
-  editingId=null;
-  document.getElementById("savedQuestion").value="";
-  document.getElementById("savedAnswer").value="";
-
-  await loadAdminReplies();
-  alert("MICAN answer saved!");
+ cancelEdit();
+ await loadAdminReplies();
+ await loadReplies();
+ alert("MICAN answer saved!");
 }
 
-/* EDIT ANSWER */
 function editReply(r){
-  editingId=r.id;
-  document.getElementById("savedQuestion").value=r.question;
-  document.getElementById("savedAnswer").value=r.answer;
+ editingId=r.id;
+ document.getElementById("savedQuestion").value=r.question;
+ document.getElementById("savedAnswer").value=r.answer;
+ document.getElementById("savedQuestion").scrollIntoView({behavior:"smooth"});
+}
+
+function cancelEdit(){
+ editingId=null;
+ document.getElementById("savedQuestion").value="";
+ document.getElementById("savedAnswer").value="";
 }
 
 /* DELETE ANSWER */
 async function deleteReply(id){
-  if(!confirm("Delete this saved answer?"))return;
+ if(!confirm("Delete this saved answer?"))return;
 
-  const {error}=await db.from("mican_replies")
-    .delete().eq("id",id);
+ const {error}=await db.from("mican_replies").delete().eq("id",id);
 
-  if(error){
-    alert("Could not delete: "+error.message);
-    return;
-  }
+ if(error){
+  alert("Could not delete: "+error.message);
+  return;
+ }
 
-  await loadAdminReplies();
+ await loadAdminReplies();
+ await loadReplies();
+}
+
+/* ADMIN DASHBOARD */
+async function loadDashboard(){
+ const {data,error}=await db.from("mican_activity")
+  .select("*").order("created_at",{ascending:false}).limit(200);
+
+ if(error){
+  alert("Could not load activity: "+error.message);
+  console.error(error.message);
+  return;
+ }
+
+ const activity=data||[];
+ const questions=activity.filter(x=>x.activity_type==="question");
+ const feedback=activity.filter(x=>x.activity_type==="feedback");
+ const helpful=feedback.filter(x=>x.feedback==="helpful");
+ const unhelpful=feedback.filter(x=>x.feedback==="not_helpful");
+
+ document.getElementById("totalQuestions").textContent=questions.length;
+ document.getElementById("helpfulCount").textContent=helpful.length;
+ document.getElementById("unhelpfulCount").textContent=unhelpful.length;
+
+ const knownQuestions=replies.map(r=>normalize(r.question));
+
+ const unanswered=questions.filter(q=>{
+  const visitorQuestion=normalize(q.question||"");
+  return !knownQuestions.some(saved=>
+   saved===visitorQuestion||
+   visitorQuestion.includes(saved)||
+   saved.includes(visitorQuestion)
+  );
+ });
+
+ document.getElementById("unansweredCount").textContent=unanswered.length;
+
+ const inbox=document.getElementById("unansweredList");
+ inbox.replaceChildren();
+
+ unanswered.slice(0,30).forEach(q=>{
+  const item=document.createElement("div");
+  item.className="reply";
+
+  const p=document.createElement("p");
+  p.textContent=q.question;
+
+  const btn=document.createElement("button");
+  btn.textContent="Create answer for this question";
+  btn.onclick=()=>{
+   document.getElementById("savedQuestion").value=q.question;
+   document.getElementById("savedAnswer").focus();
+   document.getElementById("savedQuestion").scrollIntoView({behavior:"smooth"});
+  };
+
+  item.append(p,btn);
+  inbox.appendChild(item);
+ });
+
+ if(!unanswered.length){
+  inbox.textContent="No unanswered questions found in recent activity.";
+ }
+
+ const feedbackList=document.getElementById("feedbackList");
+ feedbackList.replaceChildren();
+
+ feedback.slice(0,20).forEach(f=>{
+  const item=document.createElement("div");
+  item.className="reply";
+  item.textContent=(f.feedback==="helpful"?"👍 Helpful: ":"👎 Not helpful: ")+(f.question||"");
+  feedbackList.appendChild(item);
+ });
+
+ if(!feedback.length){
+  feedbackList.textContent="No feedback received yet.";
+ }
 }
 
 /* LOGOUT */
 async function logout(){
-  await db.auth.signOut();
-
-  document.getElementById("adminPanel").classList.add("hidden");
-  document.getElementById("adminLogin").classList.remove("hidden");
-  document.getElementById("password").value="";
-
-  alert("Logged out.");
+ await db.auth.signOut();
+ document.getElementById("adminPanel").classList.add("hidden");
+ document.getElementById("adminLogin").classList.remove("hidden");
+ document.getElementById("password").value="";
+ alert("Logged out.");
 }
 
-loadReplies();
+/* START */
+async function startMican(){
+ showHistory();
+ await loadReplies();
+}
+startMican();
 </script>
-
 </body>
 </html>
