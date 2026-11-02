@@ -1,0 +1,1 @@
+MICAN Node/Express starter. Render build: npm install. Render start: npm start. Real AI and official Meta WhatsApp Cloud API integration still require secure configuration.
