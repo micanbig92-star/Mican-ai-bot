@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MICAN AI</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#101827;color:white;font-family:Arial,sans-serif}
@@ -25,6 +25,7 @@ button.secondary{background:#40516a}
 .reply{border-top:1px solid #40516a;padding:10px 0}
 </style>
 </head>
+
 <body>
 
 <header>
@@ -33,6 +34,7 @@ button.secondary{background:#40516a}
 </header>
 
 <main>
+
 <section class="panel">
 <h3>Chat with MICAN</h3>
 <div id="messages"></div>
@@ -41,7 +43,9 @@ button.secondary{background:#40516a}
 <p class="small">MICAN answers using information saved by its admin.</p>
 </section>
 
-<section class="panel">
+<!-- ADMIN SECTION: HIDDEN BY DEFAULT -->
+<section id="adminSection" class="panel hidden">
+
 <button class="secondary" onclick="showAdmin()">Admin Login</button>
 
 <div id="adminLogin" class="hidden">
@@ -55,18 +59,22 @@ button.secondary{background:#40516a}
 <div id="adminPanel" class="hidden">
 <h3>Manage MICAN Replies</h3>
 <p class="small">Only the authorised admin can manage saved answers.</p>
+
 <input id="savedQuestion" placeholder="Question visitors may ask">
 <textarea id="savedAnswer" rows="4" placeholder="MICAN's saved answer"></textarea>
+
 <button onclick="saveReply()">Save answer</button>
 <button class="secondary" onclick="logout()">Logout</button>
+
 <h3>Saved replies</h3>
 <div id="replyList"></div>
 </div>
+
 </section>
 </main>
 
 <script>
-/* CORRECT MICAN AI SUPABASE PROJECT */
+/* MICAN AI SUPABASE CONNECTION */
 const SUPABASE_URL = "https://ozktfslqrqxdqkvgdlpn.supabase.co";
 const SUPABASE_KEY = "sb_publishable_qen-gTBWNSvaBp8AHZ936A_tnPvpYe9";
 const ADMIN_EMAIL = "itzmican42@gmail.com";
@@ -76,21 +84,40 @@ const db = supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 let editingId = null;
 let replies = [];
 
+/* SHOW ADMIN SECTION ONLY WITH #admin */
+function revealAdminAccess(){
+  const section=document.getElementById("adminSection");
+
+  if(section && window.location.hash==="#admin"){
+    section.classList.remove("hidden");
+  }else if(section){
+    section.classList.add("hidden");
+  }
+}
+
+window.addEventListener("hashchange",revealAdminAccess);
+revealAdminAccess();
+
+/* CHAT MESSAGES */
 function addMessage(text,who){
   const box=document.getElementById("messages");
   const item=document.createElement("div");
+
   item.className="msg "+(who==="user"?"user":"");
   item.textContent=(who==="user"?"You: ":"MICAN: ")+text;
+
   box.appendChild(item);
   box.scrollTop=box.scrollHeight;
 }
 
+/* NORMALISE QUESTIONS */
 function normalize(s){
   return s.toLowerCase()
     .replace(/[^a-z0-9 ]/g," ")
     .replace(/\s+/g," ").trim();
 }
 
+/* LOAD SAVED ANSWERS */
 async function loadReplies(){
   const {data,error}=await db.from("mican_replies")
     .select("*").eq("active",true);
@@ -103,6 +130,7 @@ async function loadReplies(){
   replies=data||[];
 }
 
+/* ASK MICAN */
 async function askMican(){
   const field=document.getElementById("question");
   const q=field.value.trim();
@@ -152,10 +180,12 @@ document.getElementById("question").addEventListener("keydown",e=>{
   if(e.key==="Enter")askMican();
 });
 
+/* ADMIN LOGIN BUTTON */
 function showAdmin(){
   document.getElementById("adminLogin").classList.toggle("hidden");
 }
 
+/* ADMIN AUTHENTICATION */
 async function login(){
   const email=document.getElementById("email").value.trim();
   const password=document.getElementById("password").value;
@@ -190,6 +220,7 @@ async function login(){
   await loadAdminReplies();
 }
 
+/* LOAD ADMIN REPLIES */
 async function loadAdminReplies(){
   const {data,error}=await db.from("mican_replies")
     .select("*").order("created_at",{ascending:false});
@@ -226,6 +257,7 @@ async function loadAdminReplies(){
   });
 }
 
+/* SAVE ANSWER */
 async function saveReply(){
   const question=document.getElementById("savedQuestion").value.trim();
   const answer=document.getElementById("savedAnswer").value.trim();
@@ -266,12 +298,14 @@ async function saveReply(){
   alert("MICAN answer saved!");
 }
 
+/* EDIT ANSWER */
 function editReply(r){
   editingId=r.id;
   document.getElementById("savedQuestion").value=r.question;
   document.getElementById("savedAnswer").value=r.answer;
 }
 
+/* DELETE ANSWER */
 async function deleteReply(id){
   if(!confirm("Delete this saved answer?"))return;
 
@@ -286,15 +320,19 @@ async function deleteReply(id){
   await loadAdminReplies();
 }
 
+/* LOGOUT */
 async function logout(){
   await db.auth.signOut();
+
   document.getElementById("adminPanel").classList.add("hidden");
   document.getElementById("adminLogin").classList.remove("hidden");
   document.getElementById("password").value="";
+
   alert("Logged out.");
 }
 
 loadReplies();
 </script>
+
 </body>
 </html>
