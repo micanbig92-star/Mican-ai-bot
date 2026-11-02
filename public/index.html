@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,6 +25,7 @@ button.secondary{background:#40516a}
 </style>
 </head>
 <body>
+
 <header>
 <h1>MICAN AI</h1>
 <p>Your all-in-one saved-answer assistant</p>
@@ -42,6 +42,7 @@ button.secondary{background:#40516a}
 
 <section class="panel">
 <button class="secondary" onclick="showAdmin()">Admin Login</button>
+
 <div id="adminLogin" class="hidden">
 <h3>MICAN Admin</h3>
 <input id="email" type="email" placeholder="Admin email">
@@ -65,10 +66,11 @@ button.secondary{background:#40516a}
 
 <script>
 const SUPABASE_URL = "https://qecwutjstselkypoppuj.supabase.co";
-const SUPABASE_KEY = "PASTE_YOUR_SUPABASE_PUBLISHABLE_KEY_HERE";
+const SUPABASE_KEY = "sb_publishable_qen-gTBWNSvaBp8AHZ936A_tnPvpYe9";
 const ADMIN_EMAIL = "itzmican42@gmail.com";
 
 const db = supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
 let editingId = null;
 let replies = [];
 
@@ -82,22 +84,27 @@ function addMessage(text,who){
 }
 
 function normalize(s){
-  return s.toLowerCase().replace(/[^a-z0-9 ]/g," ")
+  return s.toLowerCase()
+    .replace(/[^a-z0-9 ]/g," ")
     .replace(/\s+/g," ").trim();
 }
 
 async function loadReplies(){
   const {data,error}=await db.from("mican_replies")
     .select("*").eq("active",true);
+
   if(!error) replies=data||[];
 }
 
 async function askMican(){
   const field=document.getElementById("question");
   const q=field.value.trim();
+
   if(!q)return;
+
   field.value="";
   addMessage(q,"user");
+
   await loadReplies();
 
   const query=normalize(q);
@@ -107,20 +114,30 @@ async function askMican(){
   for(const r of replies){
     const saved=normalize(r.question);
     let score=0;
-    if(query===saved) score=100;
-    else if(query.includes(saved)||saved.includes(query)) score=75;
-    else{
+
+    if(query===saved){
+      score=100;
+    }else if(query.includes(saved)||saved.includes(query)){
+      score=75;
+    }else{
       const words=saved.split(" ");
       const matches=words.filter(w=>w.length>2&&query.includes(w));
       score=(matches.length/Math.max(words.length,1))*100;
     }
-    if(score>bestScore){bestScore=score;best=r;}
+
+    if(score>bestScore){
+      bestScore=score;
+      best=r;
+    }
   }
 
   if(best&&bestScore>=45){
     addMessage(best.answer,"bot");
   }else{
-    addMessage("I don't have a saved answer for that yet. Please contact the MICAN admin so this answer can be added.","bot");
+    addMessage(
+      "I don't have a saved answer for that yet. Please contact the MICAN admin so this answer can be added.",
+      "bot"
+    );
   }
 }
 
@@ -133,8 +150,14 @@ async function login(){
   const password=document.getElementById("password").value;
   const status=document.getElementById("loginStatus");
 
-  const {data,error}=await db.auth.signInWithPassword({email,password});
-  if(error){status.textContent=error.message;return;}
+  const {data,error}=await db.auth.signInWithPassword({
+    email,password
+  });
+
+  if(error){
+    status.textContent=error.message;
+    return;
+  }
 
   if(data.user.email.toLowerCase()!==ADMIN_EMAIL.toLowerCase()){
     await db.auth.signOut();
@@ -144,30 +167,41 @@ async function login(){
 
   document.getElementById("adminLogin").classList.add("hidden");
   document.getElementById("adminPanel").classList.remove("hidden");
+
   await loadAdminReplies();
 }
 
 async function loadAdminReplies(){
   const {data,error}=await db.from("mican_replies")
     .select("*").order("created_at",{ascending:false});
-  if(error){alert(error.message);return;}
+
+  if(error){
+    alert(error.message);
+    return;
+  }
+
   const list=document.getElementById("replyList");
   list.replaceChildren();
 
   (data||[]).forEach(r=>{
     const item=document.createElement("div");
     item.className="reply";
+
     const q=document.createElement("p");
     q.textContent="Question: "+r.question;
+
     const a=document.createElement("p");
     a.textContent="Answer: "+r.answer;
+
     const edit=document.createElement("button");
     edit.textContent="Edit";
     edit.onclick=()=>editReply(r);
+
     const del=document.createElement("button");
     del.textContent="Delete";
     del.className="secondary";
     del.onclick=()=>deleteReply(r.id);
+
     item.append(q,a,edit,del);
     list.appendChild(item);
   });
@@ -176,21 +210,40 @@ async function loadAdminReplies(){
 async function saveReply(){
   const question=document.getElementById("savedQuestion").value.trim();
   const answer=document.getElementById("savedAnswer").value.trim();
-  if(!question||!answer){alert("Enter both a question and an answer.");return;}
 
-  let result;
-  if(editingId){
-    result=await db.from("mican_replies")
-      .update({question,answer,updated_at:new Date().toISOString()})
-      .eq("id",editingId);
-  }else{
-    result=await db.from("mican_replies").insert({question,answer,active:true});
+  if(!question||!answer){
+    alert("Enter both a question and an answer.");
+    return;
   }
 
-  if(result.error){alert(result.error.message);return;}
+  let result;
+
+  if(editingId){
+    result=await db.from("mican_replies")
+      .update({
+        question,
+        answer,
+        updated_at:new Date().toISOString()
+      })
+      .eq("id",editingId);
+  }else{
+    result=await db.from("mican_replies").insert({
+      question,
+      answer,
+      active:true
+    });
+  }
+
+  if(result.error){
+    alert(result.error.message);
+    return;
+  }
+
   editingId=null;
+
   document.getElementById("savedQuestion").value="";
   document.getElementById("savedAnswer").value="";
+
   await loadAdminReplies();
   alert("MICAN answer saved!");
 }
@@ -203,13 +256,21 @@ function editReply(r){
 
 async function deleteReply(id){
   if(!confirm("Delete this saved answer?"))return;
-  const {error}=await db.from("mican_replies").delete().eq("id",id);
-  if(error){alert(error.message);return;}
+
+  const {error}=await db.from("mican_replies")
+    .delete().eq("id",id);
+
+  if(error){
+    alert(error.message);
+    return;
+  }
+
   await loadAdminReplies();
 }
 
 async function logout(){
   await db.auth.signOut();
+
   document.getElementById("adminPanel").classList.add("hidden");
   alert("Logged out.");
 }
