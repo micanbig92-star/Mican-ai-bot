@@ -359,3 +359,474 @@ function cancelEdit(){
  $('savedAnswer').value='';
  $('cancelEdit').classList.add('hidden');
 }
+async function createQuiz(){
+ if(!db){alert('Database connection is unavailable.');return}
+
+ let title=$('quizTitle').value.trim();
+ let subject=$('quizSubject').value;
+ let duration=Number($('quizDuration').value);
+ let published=$('quizPublished').checked;
+
+ if(!title||!subject||!duration){
+  alert('Enter quiz title, subject and timer.');
+  return;
+ }
+
+ let r=await db.from('mican_quizzes').insert({
+  title,subject,duration_minutes:duration,published
+ }).select().single();
+
+ if(r.error){alert(r.error.message);return}
+
+ $('quizTitle').value='';
+ await loadAdminQuizzes();
+ $('adminQuizSelect').value=r.data.id;
+ selectAdminQuiz();
+}
+
+async function loadAdminQuizzes(){
+ if(!db){alert('Database connection is unavailable.');return}
+
+ let r=await db.from('mican_quizzes').select('*')
+ .order('created_at',{ascending:false});
+
+ if(r.error){alert(r.error.message);return}
+
+ $('adminQuizSelect').innerHTML='<option value="">Select your quiz</option>';
+
+ $('quizSubject').innerHTML=subjects
+ .map(x=>'<option>'+safe(x)+'</option>').join('');
+
+ r.data.forEach(q=>{
+  let o=document.createElement('option');
+  o.value=q.id;
+  o.textContent=q.title+' · '+q.subject;
+  $('adminQuizSelect').append(o);
+ });
+
+ $('adminQuizList').replaceChildren();
+
+ r.data.forEach(q=>{
+  let d=document.createElement('div');
+  d.className='entry';
+  d.textContent=q.title+' — '+q.subject+' — '+(q.published?'Published':'Draft');
+
+  let b=document.createElement('button');
+  b.className='alt';
+  b.textContent=q.published?'Unpublish':'Publish';
+
+  b.onclick=async()=>{
+   let u=await db.from('mican_quizzes')
+   .update({published:!q.published}).eq('id',q.id);
+
+   if(u.error)alert(u.error.message);
+   else loadAdminQuizzes();
+  };
+
+  d.append(b);
+  $('adminQuizList').append(d);
+ });
+}
+
+async function selectAdminQuiz(){
+ $('questionEditor').classList.toggle(
+  'hidden',!$('adminQuizSelect').value
+ );
+}
+
+async function addQuizQuestion(){
+ if(!db){alert('Database connection is unavailable.');return}
+
+ let quiz_id=$('adminQuizSelect').value;
+ let prompt=$('quizPrompt').value.trim();
+ let a=$('optA').value.trim();
+ let b=$('optB').value.trim();
+ let c=$('optC').value.trim();
+ let d=$('optD').value.trim();
+ let correct_option=$('correctOption').value;
+ let explanation=$('quizExplanation').value.trim();
+
+ if(!quiz_id||!prompt||!a||!b||!c||!d){
+  alert('Complete the question and all four options.');
+  return;
+ }
+
+ let old=await db.from('mican_quiz_questions')
+ .select('position').eq('quiz_id',quiz_id)
+ .order('position',{ascending:false}).limit(1);
+
+ let pos=(old.data&&old.data[0]?old.data[0].position:0)+1;
+
+ let q=await db.from('mican_quiz_questions').insert({
+  quiz_id,prompt,option_a:a,option_b:b,option_c:c,option_d:d,
+  position:pos,explanation
+ }).select().single();
+
+ if(q.error){alert(q.error.message);return}
+
+ let k=await db.from('mican_quiz_answer_keys').insert({
+  question_id:q.data.id,correct_option
+ });
+
+ if(k.error){
+  alert('Question saved but answer key failed: '+k.error.message);
+  return;
+ }
+
+ ['quizPrompt','optA','optB','optC','optD','quizExplanation']
+ .forEach(id=>$(id).value='');
+
+ alert('Question and solution saved.');
+}
+
+async function loadQuizResults(){
+ if(!db){alert('Database connection is unavailable.');return}
+
+ let r=await db.from('mican_quiz_attempts')
+ .select('participant_name,quiz_id,score,total,submitted_at')
+ .order('submitted_at',{ascending:false}).limit(200);
+
+ if(r.error){alert(r.error.message);return}
+
+ let quizzes=await db.from('mican_quizzes').select('id,title');
+ let titles=Object.fromEntries((quizzes.data||[]).map(q=>[q.id,q.title]));
+
+ $('quizResults').replaceChildren();
+
+ if(!r.data.length){
+  $('quizResults').textContent='No submitted quizzes yet.';
+  return;
+ }
+
+ r.data.forEach(x=>{
+  let d=document.createElement('div');
+  d.className='entry';
+  let pct=x.total?Math.round(x.score/x.total*100):0;
+
+  d.textContent=(x.participant_name||'Participant')+
+  ' · '+(titles[x.quiz_id]||'Quiz')+
+  ' · '+x.score+'/'+x.total+' ('+pct+'%) · '+
+  new Date(x.submitted_at).toLocaleString();
+
+  $('quizResults').append(d);
+ });
+}
+
+async function loadActivity(){
+ if(!db){alert('Database connection is unavailable.');return}
+
+ let r=await db.from('mican_activity').select('*')
+ .order('created_at',{ascending:false}).limit(250);
+
+ if(r.error)return;
+
+ let a=r.data||[];
+ let q=a.filter(x=>x.activity_type==='question');
+ let f=a.filter(x=>x.activity_type==='feedback');
+
+ $('qCount').textContent=q.length;
+ $('yesCount').textContent=f.filter(x=>x.feedback==='helpful').length;
+ $('noCount').textContent=f.filter(x=>x.feedback==='not_helpful').length;
+
+ let unknown=q.filter(x=>
+  !replies.some(y=>norm(y.question)===norm(x.question))
+ );
+
+ $('inbox').replaceChildren();
+
+ unknown.forEach(x=>{
+  let b=document.createElement('button');
+  b.className='alt';
+  b.textContent=x.question;
+  b.onclick=()=>{
+   $('savedQuestion').value=x.question;
+   $('savedAnswer').focus();
+  };
+  $('inbox').append(b);
+ });
+}
+
+async function logout(){
+ if(!db){
+  $('adminPanel').classList.add('hidden');
+  $('loginBox').classList.remove('hidden');
+  return;
+ }
+
+ await db.auth.signOut();
+ $('adminPanel').classList.add('hidden');
+ $('loginBox').classList.remove('hidden');
+}
+
+function showSubjects(){
+ $('subjects').replaceChildren();
+
+ subjects.forEach(s=>{
+  let b=document.createElement('button');
+  b.textContent=s;
+  b.onclick=()=>showQuizzes(s);
+  $('subjects').append(b);
+ });
+}
+
+async function showQuizzes(s){
+ $('quizList').replaceChildren();
+
+ if(!db){
+  $('quizList').textContent='Quiz database connection is unavailable. Please refresh and try again.';
+  return;
+ }
+
+ $('quizRun').replaceChildren();
+
+ let h=document.createElement('h3');
+ h.textContent=s+' quizzes';
+ $('quizList').append(h);
+
+ let r=await db.from('mican_quizzes')
+ .select('id,title,duration_minutes')
+ .eq('subject',s).eq('published',true);
+
+ if(r.error){
+  $('quizList').append('Quiz database setup is required.');
+  return;
+ }
+
+ if(!r.data.length){
+  $('quizList').append('No published quizzes yet.');
+  return;
+ }
+
+ r.data.forEach(q=>{
+  let b=document.createElement('button');
+  b.className='alt';
+  b.textContent=q.title+' ('+q.duration_minutes+' min)';
+  b.onclick=()=>startQuiz(q);
+  $('quizList').append(b);
+ });
+}
+
+async function startQuiz(q){
+ if(!db){alert('Quiz database connection is unavailable.');return}
+
+ let participant=prompt('Enter your name before starting the quiz:');
+ if(!participant||!participant.trim())return;
+
+ quizNow=q;
+ quizNow.participantName=participant.trim().slice(0,80);
+
+ let r=await db.rpc('mican_start_quiz',{p_quiz_id:q.id});
+
+ if(r.error){alert(r.error.message);return}
+
+ quizQs=r.data.questions||[];
+
+ // Randomize question order for each participant.
+ for(let i=quizQs.length-1;i>0;i--){
+  let j=Math.floor(Math.random()*(i+1));
+  [quizQs[i],quizQs[j]]=[quizQs[j],quizQs[i]];
+ }
+
+ quizAnswers={};
+ quizPos=0;
+ quizSecs=q.duration_minutes*60;
+
+ drawQuiz();
+ clearInterval(quizTimer);
+
+ quizTimer=setInterval(()=>{
+  quizSecs--;
+  $('clock').textContent=quizSecs+' seconds remaining';
+  if(quizSecs<=0)submitQuiz();
+ },1000);
+}
+
+function drawQuiz(){
+ let q=quizQs[quizPos];
+ if(!q)return;
+
+ $('quizRun').innerHTML=
+ '<h3>'+safe(quizNow.title)+'</h3>'+
+ '<p id="clock">'+quizSecs+' seconds remaining</p>'+
+ '<p>Question '+(quizPos+1)+' of '+quizQs.length+'</p>'+
+ '<h3>'+safe(q.prompt)+'</h3>'+
+ '<div id="opts"></div>'+
+ '<div class="row">'+
+ '<button class="alt" onclick="moveQ(-1)">Previous</button>'+
+ '<button onclick="moveQ(1)">Next</button>'+
+ '</div>'+
+ '<button onclick="submitQuiz()">Submit quiz</button>';
+
+ ['a','b','c','d'].forEach(k=>{
+  let b=document.createElement('button');
+  b.className='alt';
+  b.style.display='block';
+  b.style.width='100%';
+  b.textContent=k.toUpperCase()+'. '+q['option_'+k];
+
+  b.onclick=()=>{
+   quizAnswers[q.id]=k.toUpperCase();
+   drawQuiz();
+  };
+
+  if(quizAnswers[q.id]===k.toUpperCase()){
+   b.style.outline='2px solid var(--cyan)';
+  }
+
+  $('opts').append(b);
+ });
+}
+
+function moveQ(n){
+ quizPos=Math.max(0,Math.min(quizQs.length-1,quizPos+n));
+ drawQuiz();
+}
+
+async function submitQuiz(){
+ if(!quizNow)return;
+
+ if(!db){
+  alert('Quiz database connection is unavailable. Your answers have not been submitted.');
+  return;
+ }
+
+ clearInterval(quizTimer);
+
+ let answers={
+  ...quizAnswers,
+  __participant_name:quizNow.participantName
+ };
+
+ let r=await db.rpc('mican_submit_quiz',{
+  p_quiz_id:quizNow.id,
+  p_answers:answers
+ });
+
+ if(r.error){alert(r.error.message);return}
+
+ let result=r.data||{};
+ let pct=result.total?Math.round(result.score/result.total*100):0;
+ let root=$('quizRun');
+
+ root.replaceChildren();
+
+ let h=document.createElement('h2');
+ h.textContent='Quiz submitted successfully';
+ root.append(h);
+
+ let score=document.createElement('h2');
+ score.textContent='Your score: '+result.score+'/'+result.total+' ('+pct+'%)';
+ root.append(score);
+
+ let note=document.createElement('p');
+ note.className='muted';
+ note.textContent='Your answers and the uploaded solutions are shown below.';
+ root.append(note);
+
+ (result.review||[]).forEach((item,i)=>{
+  let box=document.createElement('div');
+  box.className='entry';
+
+  let q=document.createElement('b');
+  q.textContent=(i+1)+'. '+item.question;
+  box.append(q);
+
+  let chosen=document.createElement('p');
+  chosen.textContent='Your answer: '+(item.selected||'Not answered')+
+  ' — '+(item.selected?item.options[item.selected]||'':'');
+  box.append(chosen);
+
+  let correct=document.createElement('p');
+  correct.textContent='Correct answer: '+item.correct+'. '+
+  (item.options[item.correct]||'');
+  box.append(correct);
+
+  let status=document.createElement('p');
+  status.textContent=item.is_correct?'Correct ✓':'Incorrect';
+  status.style.fontWeight='bold';
+  box.append(status);
+
+  if(item.explanation){
+   let exp=document.createElement('p');
+   exp.textContent='Solution: '+item.explanation;
+   box.append(exp);
+  }
+
+  root.append(box);
+ });
+
+ let back=document.createElement('button');
+ back.className='alt';
+ back.textContent='Back to subjects';
+ back.onclick=()=>{
+  quizNow=null;
+  showSubjects();
+ };
+ root.append(back);
+
+ quizNow=null;
+}
+
+function safe(s){
+ return String(s||'').replace(/[&<>"']/g,c=>({
+  '&':'&amp;',
+  '<':'&lt;',
+  '>':'&gt;',
+  '"':'&quot;',
+  "'":'&#39;'
+ }[c]));
+}
+
+async function boot(){
+ setTheme(localStorage.getItem('micanTheme')||'dark');
+ add("Hello! 👋 I'm MICAN AI. How can I help you today?",'bot',false);
+
+ if(!db){
+  add('Database connection is unavailable right now. The menu and local controls should still work.','bot',false);
+ }else{
+  try{
+   await loadReplies();
+  }catch(e){
+   console.error(e);
+   add('I could not load saved answers. Please try again later.','bot',false);
+  }
+ }
+
+ if(location.hash==='#admin'){
+  $('adminSection').classList.remove('hidden');
+ }
+}
+
+window.addEventListener('error',e=>console.error('MICAN error:',e.message));
+
+$('menuToggle').addEventListener('click',()=>toggleMicanMenu());
+
+document.addEventListener('click',e=>{
+ if(
+  !$('menuBox').classList.contains('hidden')&&
+  !$('menuBox').contains(e.target)&&
+  !$('menuToggle').contains(e.target)
+ ){
+  toggleMicanMenu(false);
+ }
+});
+
+document.addEventListener('keydown',e=>{
+ if(e.key==='Escape')toggleMicanMenu(false);
+});
+
+$('menuBox').addEventListener('click',e=>{
+ if(e.target.closest('button')&&
+ e.target.textContent.includes('Admin sign in')){
+  toggleMicanMenu(false);
+ }
+});
+
+window.addEventListener('hashchange',()=>
+ $('adminSection').classList.toggle('hidden',location.hash!=='#admin')
+);
+
+boot();
+</script>
+</body>
+</html>
