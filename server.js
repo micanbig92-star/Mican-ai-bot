@@ -1,50 +1,17 @@
-const express = require('express');
-const path = require('path');
-const app = express();
-
-app.use(express.json({ limit: '20kb' }));
-app.use(express.static(path.join(__dirname, 'public')));
-
-app.get('/api/health', (_, res) => res.json({ ok: true, name: 'MICAN' }));
-
-app.post('/api/chat', async (req, res) => {
-  try {
-    const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
-    if (!message) return res.status(400).json({ reply: 'Please type a message first.' });
-    if (message.length > 4000) return res.status(400).json({ reply: 'Please keep your message under 4,000 characters.' });
-    if (!process.env.OPENAI_API_KEY) return res.status(503).json({ reply: 'MICAN AI is not configured yet.' });
-
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-4.1-mini',
-        instructions: 'You are MICAN, a friendly, helpful all-in-one AI assistant. Be clear, accurate, and concise.',
-        input: message,
-        max_output_tokens: 700
-      })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      console.error('OpenAI API error:', data.error?.message || response.status);
-      return res.status(502).json({ reply: 'MICAN could not get an AI response right now. Please try again later.' });
-    }
-
-    const answer = data.output_text || (data.output || [])
-      .flatMap(item => item.content || [])
-      .filter(item => item.type === 'output_text')
-      .map(item => item.text)
-      .join('\n');
-
-    res.json({ reply: answer || 'I could not produce a response. Please try again.' });
-  } catch (error) {
-    console.error('Chat error:', error.message);
-    res.status(500).json({ reply: 'Something went wrong. Please try again.' });
-  }
-});
-
-app.listen(process.env.PORT || 3000, () => console.log('MICAN running'));
+const express=require("express"),fs=require("fs"),path=require("path"),crypto=require("crypto");
+const app=express(),PORT=process.env.PORT||3000,ADMIN=process.env.MICAN_ADMIN_PASSWORD||"ChangeThisAdminPassword",FILE=path.join(__dirname,"data.json");
+app.use(express.json({limit:"1mb"}));app.use(express.static(path.join(__dirname,"public")));
+let data={exam:null,submissions:[]},adminToken=null,sessions=new Map();
+try{data=JSON.parse(fs.readFileSync(FILE,"utf8"))}catch{}
+function save(){fs.writeFileSync(FILE,JSON.stringify(data,null,2))}
+function guard(req,res,next){if(req.headers["x-mican-admin"]!==adminToken||!adminToken)return res.status(401).json({error:"Admin sign-in required"});next()}
+app.get("/api/health",(q,s)=>s.json({ok:true}));
+app.post("/api/admin/login",(q,s)=>{if(q.body.password!==ADMIN)return s.status(401).json({error:"Wrong password"});adminToken=crypto.randomBytes(24).toString("hex");s.json({token:adminToken})});
+app.get("/api/admin/state",guard,(q,s)=>s.json({exam:data.exam?{id:data.exam.id,title:data.exam.title,active:data.exam.active,endsAt:data.exam.endsAt}:null,submissions:data.submissions}));
+app.post("/api/admin/exam",guard,(q,s)=>{let {title,durationMinutes,questions}=q.body;if(!title||!Array.isArray(questions)||!questions.length)return s.status(400).json({error:"Add a title and questions"});if(questions.some(x=>!x.prompt||!Array.isArray(x.options)||x.options.length<2||!Number.isInteger(x.answer)||x.answer<0||x.answer>=x.options.length))return s.status(400).json({error:"Check every question and correct answer"});data.exam={id:crypto.randomBytes(3).toString("hex").toUpperCase(),title:String(title).slice(0,100),durationMinutes:Math.max(1,Math.min(240,+durationMinutes||30)),active:false,questions};data.submissions=[];save();s.json({id:data.exam.id,title:data.exam.title})});
+app.post("/api/admin/start",guard,(q,s)=>{if(!data.exam)return s.status(400).json({error:"Create an exam first"});data.exam.active=true;data.exam.endsAt=new Date(Date.now()+data.exam.durationMinutes*60000).toISOString();save();s.json({code:data.exam.id,endsAt:data.exam.endsAt})});
+app.post("/api/admin/stop",guard,(q,s)=>{if(data.exam)data.exam.active=false;save();s.json({ok:true})});
+app.get("/api/exam",(q,s)=>{let e=data.exam;if(!e||!e.active||Date.now()>Date.parse(e.endsAt||0)){if(e)e.active=false;return s.json({active:false})}s.json({active:true,id:e.id,title:e.title,endsAt:e.endsAt,count:e.questions.length})});
+app.post("/api/join",(q,s)=>{let e=data.exam,name=String(q.body.name||"").trim().slice(0,80);if(!e||!e.active||Date.now()>Date.parse(e.endsAt))return s.status(403).json({error:"No active exam"});if(String(q.body.code).trim().toUpperCase()!==e.id)return s.status(403).json({error:"Wrong join code"});if(!name)return s.status(400).json({error:"Enter your name"});let token=crypto.randomBytes(24).toString("hex");sessions.set(token,{name,id:e.id});s.json({token,title:e.title,endsAt:e.endsAt,questions:e.questions.map(x=>({prompt:x.prompt,options:x.options}))})});
+app.post("/api/submit",(q,s)=>{let token=q.headers["x-mican-student"],sess=sessions.get(token),e=data.exam;if(!sess)return s.status(401).json({error:"Join the exam again"});if(!e||e.id!==sess.id)return s.status(403).json({error:"Exam unavailable"});if(data.submissions.some(x=>x.token===token))return s.status(409).json({error:"Already submitted"});let a=Array.isArray(q.body.answers)?q.body.answers:[],score=e.questions.reduce((n,x,i)=>n+(a[i]===x.answer?1:0),0);data.submissions.push({token,name:sess.name,score,total:e.questions.length,submittedAt:new Date().toISOString()});save();sessions.delete(token);s.json({score,total:e.questions.length})});
+app.listen(PORT,"0.0.0.0",()=>console.log("MICAN Local Exam listening on port "+PORT));

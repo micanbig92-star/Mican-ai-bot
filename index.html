@@ -1,26 +1,26 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MICAN AI</title>
-<style>
-*{box-sizing:border-box}body{margin:0;background:#0b1220;color:#eef3ff;font:16px system-ui}.wrap{max-width:760px;margin:auto;min-height:100vh;padding:20px;display:flex;flex-direction:column}header{padding:18px 0;border-bottom:1px solid #344}header b{font-size:23px}header div{color:#aebbd0}main{flex:1;padding:12px 0}.welcome,.bot{background:#17263c;padding:16px;border-radius:16px;margin:14px 0;line-height:1.5}.user{background:#245bd5;padding:14px;border-radius:14px;margin:10px 0 10px auto;max-width:88%;line-height:1.5;white-space:pre-wrap}.bot{white-space:pre-wrap}form{display:flex;gap:8px;position:sticky;bottom:0;background:#0b1220;padding:10px 0}input{flex:1;min-width:0;padding:14px;border-radius:12px;border:1px solid #344;background:#fff;color:#111;font-size:16px}button{padding:12px 20px;background:#2c70f0;color:white;border:0;border-radius:12px;font-size:16px}button:disabled{opacity:.6}
-</style>
-</head>
-<body><div class="wrap">
-<header><b>🟦 MICAN</b><div>Your all-in-one AI assistant</div></header>
-<main><section class="welcome"><h2>Welcome to MICAN 👋</h2><p>Ask me a question and I'll do my best to help.</p></section>
-<div id="chat"><div class="bot">Hi! I'm MICAN. What can I help you with?</div></div></main>
-<form id="form"><input id="message" maxlength="4000" placeholder="Message MICAN..." autocomplete="off" required><button id="send" type="submit">Send</button></form>
-</div>
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MICAN Local Exam</title><style>
+body{font-family:Arial;margin:0;background:#edf2f8;color:#18243a}header{background:#142b50;color:white;padding:18px;font-size:22px;font-weight:bold}.wrap{max-width:850px;margin:22px auto;padding:0 12px}.card{background:white;padding:18px;border-radius:14px;margin:14px 0;box-shadow:0 4px 18px #1232}button{padding:11px 15px;border:0;border-radius:8px;background:#1768d5;color:white;font-weight:bold;margin:5px 4px 5px 0}input,textarea,select{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:8px;margin:6px 0 12px;box-sizing:border-box}label{display:block;font-weight:bold;margin-top:8px}.hidden{display:none}.muted{color:#60708a;font-size:14px}.q{border:1px solid #dde5ef;border-radius:10px;padding:12px;margin:10px 0}.status{background:#eef5ff;padding:10px;border-radius:8px}.option{font-weight:normal;background:#f5f8fc;padding:8px;border-radius:7px;margin:5px 0}.option input{width:auto}
+</style></head><body><header>📘 MICAN LOCAL EXAM</header><main class="wrap">
+<section class="card"><p>Offline exams over your local Wi-Fi. Internet is not needed while everyone is connected to the same network.</p><button onclick="tab('student')">Student portal</button><button onclick="tab('admin')">Admin dashboard</button></section>
+<section id="student" class="card"><h2>Student portal</h2><div id="live" class="status">Checking exam…</div><label>Full name</label><input id="name" placeholder="Your name"><label>Exam join code</label><input id="code" placeholder="Code from admin"><button onclick="join()">Join exam</button><p id="msg" class="muted"></p><div id="paper" class="hidden"><h3 id="paperTitle"></h3><p id="clock" class="status"></p><div id="qs"></div><button onclick="submitPaper()">Submit answers</button></div></section>
+<section id="admin" class="card hidden"><h2>MICAN Admin</h2><div id="login"><label>Admin password</label><input id="pw" type="password"><button onclick="login()">Sign in</button><p class="muted">Set MICAN_ADMIN_PASSWORD before use. Temporary default: ChangeThisAdminPassword</p></div><div id="panel" class="hidden">
+<h3>📡 Network connection</h3><p class="muted">Choose either connection. No router ID is required. Connect the server device and student laptops to the same hotspot/router.</p><select id="net" onchange="saveNet()"><option value="phone">📱 Samsung phone hotspot</option><option value="router">📶 Wi-Fi router</option></select><p id="netmsg" class="status"></p>
+<h3>Create exam</h3><label>Exam title</label><input id="title" placeholder="Mathematics test"><label>Duration in minutes</label><input id="duration" type="number" value="30" min="1" max="240"><div id="editor"></div><button onclick="addQ()">＋ Add question</button><button onclick="create()">Save exam</button><p id="adminmsg" class="status">No exam created yet.</p><button onclick="start()">▶ Start exam</button><button onclick="stop()">Stop exam</button><h3>Student submissions</h3><button onclick="results()">Refresh results</button><div id="out"></div></div></section></main>
 <script>
-const form=document.getElementById('form'), input=document.getElementById('message'), chat=document.getElementById('chat'), send=document.getElementById('send');
-form.addEventListener('submit',async e=>{e.preventDefault();const message=input.value.trim();if(!message)return;
-const user=document.createElement('div');user.className='user';user.textContent=message;chat.appendChild(user);input.value='';send.disabled=true;send.textContent='...';
-const waiting=document.createElement('div');waiting.className='bot';waiting.textContent='MICAN is thinking...';chat.appendChild(waiting);
-try{const response=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message})});const data=await response.json();waiting.textContent=data.reply||'Sorry, I could not reply.';}
-catch(error){waiting.textContent='Connection problem. Please try again.';}
-finally{send.disabled=false;send.textContent='Send';input.focus();}
-});
-</script></body></html>
+let at='',st='',answers=[],endTimer;
+const $=x=>document.getElementById(x);
+function tab(x){$('student').classList.toggle('hidden',x!=='student');$('admin').classList.toggle('hidden',x!=='admin')}
+async function req(url,body,headers={}){let r=await fetch(url,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',...headers},body:body?JSON.stringify(body):undefined});let d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d}
+function addQ(){let d=document.createElement('div');d.className='q';d.innerHTML='<b>Question</b><textarea class="prompt" rows="2"></textarea><div><input class="op" placeholder="Option A"><input class="op" placeholder="Option B"><input class="op" placeholder="Option C"><input class="op" placeholder="Option D"></div><label>Correct answer</label><select class="ans"><option value="0">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select><button onclick="this.parentElement.remove()">Remove</button>';$('editor').append(d)}
+async function login(){try{let d=await req('/api/admin/login',{password:$('pw').value});at=d.token;$('login').classList.add('hidden');$('panel').classList.remove('hidden');$('net').value=localStorage.micanNetwork||'phone';saveNet();results()}catch(e){alert(e.message)}}
+function saveNet(){localStorage.micanNetwork=$('net').value;$('netmsg').textContent=$('net').value==='phone'?'Phone hotspot selected. Students connect to your Samsung hotspot.':'Wi-Fi router selected. Connect server and student laptops to this router.'}
+const ah=()=>({'x-mican-admin':at});
+async function create(){try{let questions=[...$('editor').children].map(d=>({prompt:d.querySelector('.prompt').value.trim(),options:[...d.querySelectorAll('.op')].map(x=>x.value.trim()),answer:+d.querySelector('.ans').value}));let d=await req('/api/admin/exam',{title:$('title').value,durationMinutes:+$('duration').value,questions},ah());$('adminmsg').textContent='Exam saved. Join code: '+d.id+'. Start it when ready.'}catch(e){alert(e.message)}}
+async function start(){try{let d=await req('/api/admin/start',{},ah());$('adminmsg').textContent='EXAM LIVE — give students join code: '+d.code;poll()}catch(e){alert(e.message)}}
+async function stop(){try{await req('/api/admin/stop',{},ah());$('adminmsg').textContent='Exam stopped.';poll()}catch(e){alert(e.message)}}
+async function results(){try{let d=await req('/api/admin/state',null,ah());$('out').innerHTML='';if(!d.submissions.length){$('out').textContent='No submissions yet';return}d.submissions.forEach(x=>{let p=document.createElement('p');p.textContent=x.name+' — '+x.score+'/'+x.total+' — '+new Date(x.submittedAt).toLocaleString();$('out').append(p)})}catch(e){$('out').textContent=e.message}}
+async function poll(){try{let d=await req('/api/exam');$('live').textContent=d.active?'ACTIVE: '+d.title+' ('+d.count+' questions)':'No active exam'}catch{$('live').textContent='Local server unavailable'}}
+async function join(){try{let d=await req('/api/join',{name:$('name').value,code:$('code').value});st=d.token;answers=Array(d.questions.length).fill(null);$('paperTitle').textContent=d.title;$('qs').innerHTML='';d.questions.forEach((q,i)=>{let box=document.createElement('div');box.className='q';let h=document.createElement('h4');h.textContent=(i+1)+'. '+q.prompt;box.append(h);q.options.forEach((op,j)=>{let l=document.createElement('label');l.className='option';let r=document.createElement('input');r.type='radio';r.name='q'+i;r.onchange=()=>answers[i]=j;l.append(r,document.createTextNode(' '+op));box.append(l)});$('qs').append(box)});$('paper').classList.remove('hidden');$('msg').textContent='You have joined. Submit before the timer ends.';clearInterval(endTimer);function tick(){let ms=Date.parse(d.endsAt)-Date.now();$('clock').textContent='Time remaining: '+Math.max(0,Math.floor(ms/60000))+'m '+Math.max(0,Math.floor(ms%60000/1000))+'s';if(ms<=0){clearInterval(endTimer);submitPaper()}}tick();endTimer=setInterval(tick,1000)}catch(e){$('msg').textContent=e.message}}
+async function submitPaper(){if(!st)return;try{let d=await req('/api/submit',{answers},{'x-mican-student':st});st='';$('paper').classList.add('hidden');$('msg').textContent='Submitted. Score: '+d.score+'/'+d.total+'.';}catch(e){$('msg').textContent=e.message}}
+addQ();poll();setInterval(poll,5000);
+setInterval(()=>{if(at)results()},7000);</script></body></html>
