@@ -1,630 +1,958 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MICAN AI</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
+:root{--bg:#081321;--panel:#122239;--panel2:#1b304a;--fg:#eef6ff;--muted:#9eb1c8;--cyan:#38c9f2;--line:#29415e}
+body.light{--bg:#edf3f9;--panel:#fff;--panel2:#e5edf5;--fg:#14243a;--muted:#52657b;--line:#c8d7e6}
 *{box-sizing:border-box}
-body{margin:0;background:#101827;color:white;font-family:Arial,sans-serif}
-header{padding:24px 15px;background:#17243a;text-align:center}
-header h1{color:#50d6ff;margin:0;font-size:30px}
-header p{color:#cbd5e1}
-main{max-width:760px;margin:20px auto;padding:12px}
-.panel{background:#1b2b43;padding:17px;border-radius:14px;margin-bottom:16px}
-input,textarea,select,button{width:100%;padding:13px;margin:6px 0;border:0;border-radius:8px;font-size:15px}
-input,textarea,select{background:#f1f5f9;color:#111}
-button{background:#08a9d6;color:white;font-weight:bold;cursor:pointer}
-button.secondary{background:#40516a}
-button.danger{background:#a83248}
-#messages{height:350px;overflow:auto;background:#0c1422;padding:12px;border-radius:10px}
-.msg{padding:11px;margin:9px 0;border-radius:10px;background:#263b55;white-space:pre-wrap;overflow-wrap:anywhere}
-.user{background:#075b75}
-.small{color:#b9c7d8;font-size:13px}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px Arial}
+button,input,textarea,select{font:inherit;border-radius:10px;padding:11px;border:1px solid var(--line)}
+button{background:var(--cyan);color:#062033;font-weight:bold;cursor:pointer}
+button.alt{background:var(--panel2);color:var(--fg)}
+input,textarea,select{background:var(--panel2);color:var(--fg);width:100%;margin:5px 0}
+header{display:flex;gap:12px;align-items:center;padding:12px;background:var(--panel);border-bottom:1px solid var(--line)}
+header b{font-size:20px;color:var(--cyan)}
+.wrap{max-width:900px;margin:auto;padding:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:15px;margin:12px 0}
 .hidden{display:none!important}
-.reply{border-top:1px solid #40516a;padding:12px 0}
-.row{display:flex;gap:7px;align-items:center}
-.row>*{flex:1;min-width:0}
-.suggestions,.pills{display:flex;flex-wrap:wrap;gap:7px}
-.suggestions button,.pills button{width:auto;padding:9px 12px}
-.statgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.stat{background:#0c1422;padding:15px;border-radius:10px}
-.stat strong{display:block;color:#50d6ff;font-size:25px;margin-top:5px}
-#typing{color:#50d6ff;font-size:13px}
-footer{text-align:center;color:#9aabc0;padding:20px;font-size:12px}
+.muted{color:var(--muted);font-size:12px}
+#messages{height:48vh;overflow:auto;background:var(--bg);border:1px solid var(--line);padding:10px;border-radius:12px}
+.msg{background:var(--panel2);padding:11px;border-radius:12px;margin:8px 0;white-space:pre-wrap;max-width:94%;overflow-wrap:anywhere}
+.user{background:#075b75;margin-left:auto}
+.row{display:flex;gap:6px;align-items:center}
+.row>*{min-width:0}
+.row input{flex:1}
+.row button{flex-shrink:0}
+.drawer{position:fixed;z-index:5;inset:0 auto 0 0;width:min(300px,85vw);background:var(--panel);padding:14px;box-shadow:0 0 0 100vmax #0009;overflow:auto}
+.drawer button{width:100%;text-align:left;margin:4px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}
+.grid button{background:var(--panel2);color:var(--fg);text-align:left}
+details{background:var(--panel2);padding:10px;border-radius:10px;margin:8px 0}
+.entry{border-bottom:1px solid var(--line);padding:10px}
+img.preview{max-width:100%;max-height:220px;border-radius:10px}
 </style>
 </head>
 <body>
 
 <header>
-<h1>MICAN AI</h1>
-<p>Your all-in-one saved-answer assistant</p>
+<button class="alt" onclick="menu()">☰</button>
+<b>MICAN AI</b>
+<span class="muted">All-in-one assistant</span>
 </header>
 
-<main>
-<section class="panel">
-<h3>Chat with MICAN</h3>
+<nav id="menuBox" class="drawer hidden">
+<button class="alt" onclick="newChat()">＋ New chat</button>
+<button class="alt" onclick="searchChats()">⌕ Search chats</button>
+<button class="alt" onclick="page('quiz')">▣ Quiz & Subjects</button>
+<button class="alt" onclick="history()">◷ Chat history</button>
+<button class="alt" onclick="page('settings')">⚙ Settings</button>
+<button class="alt" onclick="page('chat')">Back to chat</button>
+<button class="alt" onclick="location.hash='admin'">Admin sign in</button>
+</nav>
 
+<main class="wrap">
+
+<section id="chatPage" class="card">
+<h2>Chat with MICAN</h2>
+<div id="messages"></div>
+
+<button class="alt" onclick="document.getElementById('suggestions').classList.toggle('hidden')">Suggested questions</button>
+
+<div id="suggestions" class="grid hidden">
+<button onclick="suggest('What can you help me with?')">What can you do?</button>
+<button onclick="suggest('Give me study tips')">Study tips</button>
+<button onclick="suggest('How can I learn technology?')">Technology</button>
+</div>
+
+<div class="row" style="margin-top:10px">
+<input id="question" placeholder="Message MICAN..." onkeydown="if(event.key==='Enter')ask()">
+<button class="alt" title="Camera" onclick="camera.click()">📷</button>
+<button class="alt" title="Voice" onclick="voice()">🎤</button>
+<button onclick="ask()">Send</button>
+</div>
+
+<input id="camera" type="file" accept="image/*" capture="environment" class="hidden" onchange="photo(event)">
+
+<div id="photoBox" class="card hidden">
+<img id="preview" class="preview">
+<p id="photoStatus" class="muted">Photo ready.</p>
 <div class="row">
-<button class="secondary" onclick="showHistory()">Chat history</button>
-<button class="secondary" onclick="clearHistory()">Clear history</button>
+<button onclick="readPhoto()">Read question</button>
+<button class="alt" onclick="removePhoto()">Remove</button>
+</div>
 </div>
 
-<div id="messages" aria-live="polite"></div>
-<p id="typing" class="hidden">MICAN is thinking...</p>
-
-<div class="row">
-<input id="question" placeholder="Ask MICAN anything..." autocomplete="off">
-<button style="max-width:90px" onclick="askMican()">Send</button>
-</div>
-
-<div class="row">
-<button class="secondary" onclick="startVoice()">🎤 Speak</button>
-<button class="secondary" onclick="stopVoice()">Stop voice</button>
-</div>
-<p id="voiceStatus" class="small">Voice input depends on browser support.</p>
-
-<h4>Suggested questions</h4>
-<div class="suggestions">
-<button onclick="useSuggestion('What can you help me with?')">What can you do?</button>
-<button onclick="useSuggestion('Tell me something interesting')">Fun facts</button>
-<button onclick="useSuggestion('How can I learn technology?')">Technology</button>
-<button onclick="useSuggestion('Give me study tips')">Study tips</button>
-</div>
-
-<h4>FAQ categories</h4>
-<div class="pills">
-<button class="secondary" onclick="filterCategory('all')">All</button>
-<button class="secondary" onclick="filterCategory('education')">Education</button>
-<button class="secondary" onclick="filterCategory('technology')">Technology</button>
-<button class="secondary" onclick="filterCategory('general')">General</button>
-</div>
-<div id="faqList"></div>
-
-<p class="small">
-MICAN currently answers using information saved by its admin.
-It does not yet generate unrestricted ChatGPT-style answers.
-</p>
+<p class="muted">A photo is converted to text and checked against your saved answers. MICAN does not independently solve it.</p>
 </section>
 
-<!-- ADMIN AREA -->
-<section id="adminSection" class="panel hidden">
-<button class="secondary" onclick="showAdmin()">Admin Login</button>
+<section id="quizPage" class="card hidden">
+<h2>Quiz</h2>
+<p class="muted">Choose a subject to see published quizzes.</p>
+<div id="subjects" class="grid"></div>
+<div id="quizList"></div>
+<div id="quizRun"></div>
+</section>
 
-<div id="adminLogin" class="hidden">
-<h3>MICAN Admin Login</h3>
-<input id="email" type="email" placeholder="Admin email">
-<input id="password" type="password" placeholder="Admin password">
-<button onclick="login()">Login</button>
-<p id="loginStatus" class="small"></p>
+<section id="settingsPage" class="card hidden">
+<h2>Settings</h2>
+<label>Appearance</label>
+<select id="theme" onchange="setTheme(this.value)">
+<option value="dark">Dark</option>
+<option value="light">Light</option>
+</select>
+<label>Text size</label>
+<select onchange="document.body.style.fontSize=this.value">
+<option value="15px">Normal</option>
+<option value="17px">Large</option>
+<option value="19px">Extra large</option>
+</select>
+<label><input type="checkbox" style="width:auto"> Sound on</label>
+<p class="muted">Account and notification controls can be added when account services are connected.</p>
+</section>
+
+<section id="adminSection" class="card hidden">
+<h2>MICAN Admin</h2>
+
+<div id="loginBox">
+<input id="email" placeholder="Admin email">
+<input id="password" type="password" placeholder="Password">
+<button onclick="login()">Sign in</button>
+<p id="loginStatus" class="muted"></p>
 </div>
 
 <div id="adminPanel" class="hidden">
-<h3>MICAN Admin Dashboard</h3>
-<p class="small">Manage saved answers and review visitor activity.</p>
 
-<h4>Statistics</h4>
-<div class="statgrid">
-<div class="stat">Questions<strong id="totalQuestions">0</strong></div>
-<div class="stat">Helpful feedback<strong id="helpfulCount">0</strong></div>
-<div class="stat">Needs improvement<strong id="unhelpfulCount">0</strong></div>
-<div class="stat">Unanswered<strong id="unansweredCount">0</strong></div>
+<h3>Add saved answer</h3>
+<input id="savedQuestion" placeholder="Question">
+<textarea id="savedAnswer" rows="3" placeholder="Answer"></textarea>
+<button onclick="saveReply()">Save answer</button>
+<button id="cancelEdit" class="alt hidden" onclick="cancelEdit()">Cancel edit</button>
+
+<details>
+<summary>▣ Saved Answers <span id="savedCount">0</span></summary>
+<input id="savedSearch" placeholder="Search saved answers" oninput="renderSaved()">
+<div id="savedList"></div>
+</details>
+
+<details>
+<summary>＋ Quiz Questions & Answer Keys</summary>
+
+<input id="quizTitle" placeholder="Quiz title">
+<select id="quizSubject"></select>
+<input id="quizDuration" type="number" min="1" max="180" value="15" placeholder="Timer in minutes">
+
+<label>
+<input id="quizPublished" type="checkbox" style="width:auto">
+Publish quiz
+</label>
+
+<button onclick="createQuiz()">Create quiz</button>
+
+<p class="muted">After creating a quiz, choose it below to add questions one by one.</p>
+
+<select id="adminQuizSelect" onchange="selectAdminQuiz()">
+<option value="">Select your quiz</option>
+</select>
+
+<div id="questionEditor" class="hidden">
+<textarea id="quizPrompt" placeholder="Question" rows="2"></textarea>
+<input id="optA" placeholder="Option A">
+<input id="optB" placeholder="Option B">
+<input id="optC" placeholder="Option C">
+<input id="optD" placeholder="Option D">
+
+<select id="correctOption">
+<option value="A">Correct answer: A</option>
+<option value="B">Correct answer: B</option>
+<option value="C">Correct answer: C</option>
+<option value="D">Correct answer: D</option>
+</select>
+
+<textarea id="quizExplanation" rows="3" placeholder="Explanation / solution shown after the participant submits"></textarea>
+
+<button onclick="addQuizQuestion()">Save question</button>
 </div>
 
-<button class="secondary" onclick="loadDashboard()">Refresh dashboard</button>
+<div id="adminQuizList"></div>
+</details>
 
-<h4>Save a new answer</h4>
-<input id="savedQuestion" placeholder="Question visitors may ask">
-<textarea id="savedAnswer" rows="4" placeholder="MICAN's saved answer"></textarea>
-<button onclick="saveReply()">Save answer</button>
-<button class="secondary" onclick="cancelEdit()">Cancel editing</button>
+<details>
+<summary>👥 Participants & Results</summary>
+<p class="muted">Only submitted quizzes appear here.</p>
+<button class="alt" onclick="loadQuizResults()">Refresh participant results</button>
+<div id="quizResults"></div>
+</details>
 
-<h4>Saved replies</h4>
-<div id="replyList"></div>
+<h3>Visitor activity</h3>
+<div class="row">
+<span>Questions: <b id="qCount">0</b></span>
+<span>Helpful: <b id="yesCount">0</b></span>
+<span>Not helpful: <b id="noCount">0</b></span>
+</div>
 
-<h4>Visitor questions / unanswered inbox</h4>
-<div id="unansweredList"></div>
+<button class="alt" onclick="loadActivity()">Refresh</button>
+<h4>Questions to review</h4>
+<div id="inbox"></div>
+<button class="alt" onclick="logout()">Log out</button>
 
-<h4>Recent visitor feedback</h4>
-<div id="feedbackList"></div>
-
-<button class="danger" onclick="logout()">Logout</button>
 </div>
 </section>
 </main>
 
-<footer>MICAN AI · All-in-one assistant</footer>
-
 <script>
-const SUPABASE_URL="https://ozktfslqrqxdqkvgdlpn.supabase.co";
-const SUPABASE_KEY="sb_publishable_qen-gTBWNSvaBp8AHZ936A_tnPvpYe9";
-const ADMIN_EMAIL="itzmican42@gmail.com";
+const URL='https://ozktfslqrqxdqkvgdlpn.supabase.co';
+const KEY='sb_publishable_qen-gTBWNSvaBp8AHZ936A_tnPvpYe9';
+const ADMIN='itzmican42@gmail.com';
 
-const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const db=supabase.createClient(URL,KEY);
 
-let replies=[];
-let editingId=null;
-let lastQuestion="";
-let currentCategory="all";
-let recognition=null;
+let replies=[],editId=null,photoFile=null,rec=null;
+let quizTimer=null,quizSecs=0,quizNow=null;
+let quizQs=[],quizAnswers={},quizPos=0;
 
-function revealAdminAccess(){
- const section=document.getElementById("adminSection");
- if(location.hash==="#admin"){
-  section.classList.remove("hidden");
- }else{
-  section.classList.add("hidden");
- }
-}
-window.addEventListener("hashchange",revealAdminAccess);
-revealAdminAccess();
+const subjects=[
+'Mathematics','English Language','Biology','Chemistry','Physics',
+'Further Mathematics','Agricultural Science','Economics','Government',
+'Literature in English','Commerce','Accounting','Geography',
+'Civic Education','Computer Studies','Christian Religious Studies',
+'Islamic Religious Studies','History','French','Technical Drawing'
+];
 
-/* CHAT HISTORY */
-const HISTORY_KEY="mican_chat_history_v2";
+const $=x=>document.getElementById(x);
 
-function getHistory(){
- try{
-  return JSON.parse(localStorage.getItem(HISTORY_KEY)||"[]");
- }catch(e){
-  return [];
- }
+function menu(){
+$('menuBox').classList.toggle('hidden');
 }
 
-function addMessage(text,who,save=true){
- const box=document.getElementById("messages");
- const item=document.createElement("div");
- item.className="msg "+(who==="user"?"user":"");
- item.textContent=(who==="user"?"You: ":"MICAN: ")+text;
- box.appendChild(item);
- box.scrollTop=box.scrollHeight;
-
- if(save){
-  const history=getHistory();
-  history.push({text,who,time:new Date().toISOString()});
-  localStorage.setItem(HISTORY_KEY,JSON.stringify(history.slice(-100)));
- }
+function page(p){
+['chat','quiz','settings'].forEach(x=>
+$(x+'Page').classList.toggle('hidden',x!==p));
+menuIfOpen();
+if(p==='quiz')showSubjects();
 }
 
-function showHistory(){
- const box=document.getElementById("messages");
- box.replaceChildren();
- getHistory().forEach(item=>addMessage(item.text,item.who,false));
- if(!getHistory().length){
-  addMessage("Your chat history is empty.","bot",false);
- }
+function menuIfOpen(){
+$('menuBox').classList.add('hidden');
 }
 
-function clearHistory(){
- if(!confirm("Clear this browser's saved chat history?"))return;
- localStorage.removeItem(HISTORY_KEY);
- document.getElementById("messages").replaceChildren();
- addMessage("Your chat history has been cleared.","bot");
+function add(t,who='bot',save=true){
+let d=document.createElement('div');
+d.className='msg '+(who==='user'?'user':'');
+d.textContent=(who==='user'?'You: ':'MICAN: ')+t;
+$('messages').append(d);
+$('messages').scrollTop=$('messages').scrollHeight;
+
+if(save){
+let h=JSON.parse(localStorage.getItem('micanHistory')||'[]');
+h.push({t,who});
+localStorage.setItem('micanHistory',JSON.stringify(h.slice(-100)));
+}
 }
 
-/* SUGGESTIONS */
-function useSuggestion(question){
- document.getElementById("question").value=question;
- askMican();
+function newChat(){
+$('messages').replaceChildren();
+localStorage.removeItem('micanHistory');
+add("Hello! 👋 I'm MICAN AI. How can I help you today?",'bot',false);
+page('chat');
 }
 
-/* CATEGORIES */
-function getCategory(question){
- const q=question.toLowerCase();
- if(/school|study|exam|math|science|education|learn|student|university/.test(q))return "education";
- if(/phone|computer|technology|website|coding|app|internet|software|program/.test(q))return "technology";
- return "general";
+function history(){
+page('chat');
+$('messages').replaceChildren();
+JSON.parse(localStorage.getItem('micanHistory')||'[]').forEach(x=>add(x.t,x.who,false));
 }
 
-function filterCategory(category){
- currentCategory=category;
- renderFaq();
+function searchChats(){
+let s=prompt('Search chat history');
+if(!s)return;
+page('chat');
+$('messages').replaceChildren();
+JSON.parse(localStorage.getItem('micanHistory')||'[]')
+.filter(x=>x.t.toLowerCase().includes(s.toLowerCase()))
+.forEach(x=>add(x.t,x.who,false));
 }
 
-function renderFaq(){
- const list=document.getElementById("faqList");
- list.replaceChildren();
-
- const filtered=replies.filter(r=>
-  currentCategory==="all"||getCategory(r.question)===currentCategory
- );
-
- filtered.slice(0,12).forEach(r=>{
-  const button=document.createElement("button");
-  button.className="secondary";
-  button.textContent=r.question;
-  button.onclick=()=>useSuggestion(r.question);
-  list.appendChild(button);
- });
-
- if(!filtered.length){
-  const p=document.createElement("p");
-  p.className="small";
-  p.textContent="No saved questions in this category yet.";
-  list.appendChild(p);
- }
+function suggest(s){
+$('question').value=s;
+ask();
 }
 
-/* QUESTION MATCHING */
-function normalize(s){
- return s.toLowerCase()
-  .replace(/[^a-z0-9 ]/g," ")
-  .replace(/\s+/g," ").trim();
+function norm(s){
+return(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
 }
 
 async function loadReplies(){
- const {data,error}=await db.from("mican_replies")
-  .select("*").eq("active",true);
-
- if(error){
-  console.error(error.message);
-  return;
- }
-
- replies=data||[];
- renderFaq();
+let r=await db.from('mican_replies').select('*').eq('active',true);
+if(!r.error)replies=r.data||[];
 }
 
-/* RECORD VISITOR QUESTION */
-async function recordQuestion(question){
- const {error}=await db.from("mican_activity").insert({
-  activity_type:"question",
-  question:question
- });
- if(error)console.error("Activity recording error:",error.message);
+async function findAnswer(q){
+await loadReplies();
+let n=norm(q),best=null,top=0;
+
+for(let r of replies){
+let s=norm(r.question);
+let w=[...new Set(s.split(' ').filter(x=>x.length>2))];
+let score=n===s?100:w.filter(x=>n.includes(x)).length/Math.max(1,w.length)*100;
+if(n.includes(s)||s.includes(n))score=Math.max(score,75);
+if(score>top){top=score;best=r}
 }
 
-/* FEEDBACK */
-async function sendFeedback(value){
- if(!lastQuestion){
-  alert("Ask MICAN a question first.");
-  return;
- }
-
- const {error}=await db.from("mican_activity").insert({
-  activity_type:"feedback",
-  question:lastQuestion,
-  feedback:value
- });
-
- if(error){
-  alert("Feedback could not be sent.");
-  console.error(error.message);
-  return;
- }
-
- addMessage("Thanks for your feedback!","bot");
+return top>=45?best:null;
 }
 
-/* ASK MICAN */
-async function askMican(){
- const field=document.getElementById("question");
- const q=field.value.trim();
- if(!q)return;
+async function ask(){
+let q=$('question').value.trim();
+if(!q)return;
 
- field.value="";
- addMessage(q,"user");
- lastQuestion=q;
+$('question').value='';
+add(q,'user');
 
- document.getElementById("typing").classList.remove("hidden");
-
- await recordQuestion(q);
- await loadReplies();
-
- const query=normalize(q);
- let best=null;
- let bestScore=0;
-
- for(const r of replies){
-  const saved=normalize(r.question);
-  let score=0;
-
-  if(query===saved){
-   score=100;
-  }else if(query.includes(saved)||saved.includes(query)){
-   score=75;
-  }else{
-   const words=saved.split(" ");
-   const matches=words.filter(w=>w.length>2&&query.includes(w));
-   score=(matches.length/Math.max(words.length,1))*100;
-  }
-
-  if(score>bestScore){
-   bestScore=score;
-   best=r;
-  }
- }
-
- document.getElementById("typing").classList.add("hidden");
-
- if(best&&bestScore>=45){
-  addMessage(best.answer,"bot");
-
-  const feedback=document.createElement("div");
-  feedback.className="suggestions";
-
-  const yes=document.createElement("button");
-  yes.className="secondary";
-  yes.textContent="👍 Helpful";
-  yes.onclick=()=>sendFeedback("helpful");
-
-  const no=document.createElement("button");
-  no.className="secondary";
-  no.textContent="👎 Not helpful";
-  no.onclick=()=>sendFeedback("not_helpful");
-
-  feedback.append(yes,no);
-  document.getElementById("messages").appendChild(feedback);
- }else{
-  addMessage("I don't have a saved answer for that yet. Your question has been sent to the admin inbox for review.","bot");
- }
-}
-
-document.getElementById("question").addEventListener("keydown",e=>{
- if(e.key==="Enter")askMican();
+await db.from('mican_activity').insert({
+activity_type:'question',
+question:q
 });
 
-/* VOICE INPUT */
-function startVoice(){
- const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+let r=await findAnswer(q);
 
- if(!SpeechRecognition){
-  document.getElementById("voiceStatus").textContent="Voice input is not supported here. Try Chrome.";
-  return;
- }
+if(r){
+add(r.answer);
+let row=document.createElement('div');
 
- recognition=new SpeechRecognition();
- recognition.lang="en-NG";
- recognition.interimResults=false;
- recognition.maxAlternatives=1;
+['helpful','not_helpful'].forEach((v,i)=>{
+let b=document.createElement('button');
+b.className='alt';
+b.textContent=i?'👎 Not helpful':'👍 Helpful';
 
- recognition.onstart=()=>{
-  document.getElementById("voiceStatus").textContent="Listening...";
- };
+b.onclick=async()=>{
+await db.from('mican_activity').insert({
+activity_type:'feedback',
+question:q,
+feedback:v
+});
+add('Thanks for your feedback!');
+};
 
- recognition.onresult=event=>{
-  document.getElementById("question").value=event.results[0][0].transcript;
-  document.getElementById("voiceStatus").textContent="Voice captured. Tap Send.";
- };
+row.append(b);
+});
 
- recognition.onerror=event=>{
-  document.getElementById("voiceStatus").textContent="Voice input error: "+event.error;
- };
-
- recognition.onend=()=>{recognition=null;};
- recognition.start();
+$('messages').append(row);
+}else{
+add("I couldn't find a reliable saved answer. Your question has been sent to the admin review inbox.");
+}
 }
 
-function stopVoice(){
- if(recognition)recognition.stop();
- document.getElementById("voiceStatus").textContent="Voice input stopped.";
+function photo(e){
+photoFile=e.target.files[0];
+if(!photoFile)return;
+
+$('preview').src=URL.createObjectURL(photoFile);
+$('photoBox').classList.remove('hidden');
+$('photoStatus').textContent='Photo selected. Tap Read question.';
 }
 
-/* ADMIN LOGIN */
-function showAdmin(){
- document.getElementById("adminLogin").classList.toggle("hidden");
+async function readPhoto(){
+if(!photoFile)return;
+
+$('photoStatus').textContent='Reading text…';
+
+try{
+let r=await Tesseract.recognize(photoFile,'eng');
+let t=r.data.text.trim();
+
+if(!t){
+$('photoStatus').textContent='Could not find readable text. Try again or type it.';
+return;
+}
+
+$('question').value=t;
+$('photoStatus').textContent='Text extracted. Check it, then press Send.';
+add('Text found in your photo. Check the message box and press Send.');
+}catch(e){
+$('photoStatus').textContent='Photo reading failed. You can type the question.';
+}
+}
+
+function removePhoto(){
+photoFile=null;
+$('camera').value='';
+$('photoBox').classList.add('hidden');
+}
+
+function voice(){
+let S=window.SpeechRecognition||window.webkitSpeechRecognition;
+
+if(!S){
+alert('Voice input is unavailable in this browser.');
+return;
+}
+
+rec=new S();
+rec.lang='en-NG';
+rec.onresult=e=>$('question').value=e.results[0][0].transcript;
+rec.onend=()=>rec=null;
+rec.start();
+}
+
+function setTheme(v){
+document.body.classList.toggle('light',v==='light');
+localStorage.setItem('micanTheme',v);
 }
 
 async function login(){
- const email=document.getElementById("email").value.trim();
- const password=document.getElementById("password").value;
- const status=document.getElementById("loginStatus");
+let e=$('email').value.trim();
+let p=$('password').value;
 
- status.textContent="Checking login...";
+$('loginStatus').textContent='Signing in…';
 
- if(!email||!password){
-  status.textContent="Enter your email and password.";
-  return;
- }
+let r=await db.auth.signInWithPassword({email:e,password:p});
 
- const {data,error}=await db.auth.signInWithPassword({email,password});
-
- if(error){
-  status.textContent=error.message;
-  return;
- }
-
- if(!data.user.email||data.user.email.toLowerCase()!==ADMIN_EMAIL.toLowerCase()){
-  await db.auth.signOut();
-  status.textContent="This account is not authorised as MICAN admin.";
-  return;
- }
-
- document.getElementById("adminLogin").classList.add("hidden");
- document.getElementById("adminPanel").classList.remove("hidden");
-
- await loadAdminReplies();
- await loadDashboard();
+if(r.error){
+$('loginStatus').textContent=r.error.message;
+return;
 }
 
-/* ADMIN REPLIES */
-async function loadAdminReplies(){
- const {data,error}=await db.from("mican_replies")
-  .select("*").order("created_at",{ascending:false});
-
- if(error){
-  alert("Could not load saved replies: "+error.message);
-  return;
- }
-
- const list=document.getElementById("replyList");
- list.replaceChildren();
-
- (data||[]).forEach(r=>{
-  const item=document.createElement("div");
-  item.className="reply";
-
-  const q=document.createElement("p");
-  q.textContent="Question: "+r.question;
-
-  const a=document.createElement("p");
-  a.textContent="Answer: "+r.answer;
-
-  const edit=document.createElement("button");
-  edit.textContent="Edit";
-  edit.onclick=()=>editReply(r);
-
-  const del=document.createElement("button");
-  del.textContent="Delete";
-  del.className="danger";
-  del.onclick=()=>deleteReply(r.id);
-
-  item.append(q,a,edit,del);
-  list.appendChild(item);
- });
+if((r.data.user.email||'').toLowerCase()!==ADMIN){
+await db.auth.signOut();
+$('loginStatus').textContent='Not authorised';
+return;
 }
 
-/* SAVE ANSWER */
+$('loginBox').classList.add('hidden');
+$('adminPanel').classList.remove('hidden');
+
+await loadSaved();
+await loadActivity();
+await loadAdminQuizzes();
+}
+
+async function loadSaved(){
+let r=await db.from('mican_replies').select('*').order('created_at',{ascending:false});
+
+if(r.error){
+alert(r.error.message);
+return;
+}
+
+replies=r.data||[];
+renderSaved();
+}
+
+function renderSaved(){
+let term=norm($('savedSearch').value);
+let list=$('savedList');
+list.replaceChildren();
+
+$('savedCount').textContent=replies.length;
+
+replies.filter(r=>!term||norm(r.question+' '+r.answer).includes(term)).forEach(r=>{
+let d=document.createElement('div');
+d.className='entry';
+
+let b=document.createElement('b');
+b.textContent=r.question;
+
+let a=document.createElement('p');
+a.textContent=r.answer;
+
+let e=document.createElement('button');
+e.textContent='Edit';
+e.className='alt';
+
+e.onclick=()=>{
+editId=r.id;
+$('savedQuestion').value=r.question;
+$('savedAnswer').value=r.answer;
+$('cancelEdit').classList.remove('hidden');
+};
+
+let del=document.createElement('button');
+del.textContent='Delete';
+
+del.onclick=async()=>{
+if(confirm('Delete this answer?')){
+let x=await db.from('mican_replies').delete().eq('id',r.id);
+if(x.error)alert(x.error.message);
+else loadSaved();
+}
+};
+
+d.append(b,a,e,del);
+list.append(d);
+});
+}
+
 async function saveReply(){
- const question=document.getElementById("savedQuestion").value.trim();
- const answer=document.getElementById("savedAnswer").value.trim();
+let question=$('savedQuestion').value.trim();
+let answer=$('savedAnswer').value.trim();
 
- if(!question||!answer){
-  alert("Enter both a question and an answer.");
-  return;
- }
-
- let result;
-
- if(editingId){
-  result=await db.from("mican_replies")
-   .update({question,answer,updated_at:new Date().toISOString()})
-   .eq("id",editingId);
- }else{
-  result=await db.from("mican_replies").insert({
-   question,answer,active:true
-  });
- }
-
- if(result.error){
-  alert("Could not save: "+result.error.message);
-  return;
- }
-
- cancelEdit();
- await loadAdminReplies();
- await loadReplies();
- alert("MICAN answer saved!");
+if(!question||!answer){
+alert('Enter both fields');
+return;
 }
 
-function editReply(r){
- editingId=r.id;
- document.getElementById("savedQuestion").value=r.question;
- document.getElementById("savedAnswer").value=r.answer;
- document.getElementById("savedQuestion").scrollIntoView({behavior:"smooth"});
+let r=editId
+?await db.from('mican_replies').update({
+question,answer,updated_at:new Date().toISOString()
+}).eq('id',editId)
+:await db.from('mican_replies').insert({
+question,answer,active:true
+});
+
+if(r.error){
+alert(r.error.message);
+return;
+}
+
+cancelEdit();
+await loadSaved();
+alert('Saved!');
 }
 
 function cancelEdit(){
- editingId=null;
- document.getElementById("savedQuestion").value="";
- document.getElementById("savedAnswer").value="";
+editId=null;
+$('savedQuestion').value='';
+$('savedAnswer').value='';
+$('cancelEdit').classList.add('hidden');
 }
 
-/* DELETE ANSWER */
-async function deleteReply(id){
- if(!confirm("Delete this saved answer?"))return;
+async function createQuiz(){
+let title=$('quizTitle').value.trim();
+let subject=$('quizSubject').value;
+let duration=Number($('quizDuration').value);
+let published=$('quizPublished').checked;
 
- const {error}=await db.from("mican_replies").delete().eq("id",id);
-
- if(error){
-  alert("Could not delete: "+error.message);
-  return;
- }
-
- await loadAdminReplies();
- await loadReplies();
+if(!title||!subject||!duration){
+alert('Enter quiz title, subject and timer.');
+return;
 }
 
-/* ADMIN DASHBOARD */
-async function loadDashboard(){
- const {data,error}=await db.from("mican_activity")
-  .select("*").order("created_at",{ascending:false}).limit(200);
+let r=await db.from('mican_quizzes').insert({
+title,subject,duration_minutes:duration,published
+}).select().single();
 
- if(error){
-  alert("Could not load activity: "+error.message);
-  console.error(error.message);
-  return;
- }
-
- const activity=data||[];
- const questions=activity.filter(x=>x.activity_type==="question");
- const feedback=activity.filter(x=>x.activity_type==="feedback");
- const helpful=feedback.filter(x=>x.feedback==="helpful");
- const unhelpful=feedback.filter(x=>x.feedback==="not_helpful");
-
- document.getElementById("totalQuestions").textContent=questions.length;
- document.getElementById("helpfulCount").textContent=helpful.length;
- document.getElementById("unhelpfulCount").textContent=unhelpful.length;
-
- const knownQuestions=replies.map(r=>normalize(r.question));
-
- const unanswered=questions.filter(q=>{
-  const visitorQuestion=normalize(q.question||"");
-  return !knownQuestions.some(saved=>
-   saved===visitorQuestion||
-   visitorQuestion.includes(saved)||
-   saved.includes(visitorQuestion)
-  );
- });
-
- document.getElementById("unansweredCount").textContent=unanswered.length;
-
- const inbox=document.getElementById("unansweredList");
- inbox.replaceChildren();
-
- unanswered.slice(0,30).forEach(q=>{
-  const item=document.createElement("div");
-  item.className="reply";
-
-  const p=document.createElement("p");
-  p.textContent=q.question;
-
-  const btn=document.createElement("button");
-  btn.textContent="Create answer for this question";
-  btn.onclick=()=>{
-   document.getElementById("savedQuestion").value=q.question;
-   document.getElementById("savedAnswer").focus();
-   document.getElementById("savedQuestion").scrollIntoView({behavior:"smooth"});
-  };
-
-  item.append(p,btn);
-  inbox.appendChild(item);
- });
-
- if(!unanswered.length){
-  inbox.textContent="No unanswered questions found in recent activity.";
- }
-
- const feedbackList=document.getElementById("feedbackList");
- feedbackList.replaceChildren();
-
- feedback.slice(0,20).forEach(f=>{
-  const item=document.createElement("div");
-  item.className="reply";
-  item.textContent=(f.feedback==="helpful"?"👍 Helpful: ":"👎 Not helpful: ")+(f.question||"");
-  feedbackList.appendChild(item);
- });
-
- if(!feedback.length){
-  feedbackList.textContent="No feedback received yet.";
- }
+if(r.error){
+alert(r.error.message);
+return;
 }
 
-/* LOGOUT */
+$('quizTitle').value='';
+await loadAdminQuizzes();
+$('adminQuizSelect').value=r.data.id;
+selectAdminQuiz();
+}
+
+async function loadAdminQuizzes(){
+let r=await db.from('mican_quizzes').select('*').order('created_at',{ascending:false});
+
+if(r.error){
+alert(r.error.message);
+return;
+}
+
+$('adminQuizSelect').innerHTML='<option value="">Select your quiz</option>';
+
+$('quizSubject').innerHTML=subjects.map(x=>'<option>'+safe(x)+'</option>').join('');
+
+r.data.forEach(q=>{
+let o=document.createElement('option');
+o.value=q.id;
+o.textContent=q.title+' · '+q.subject;
+$('adminQuizSelect').append(o);
+});
+
+$('adminQuizList').replaceChildren();
+
+r.data.forEach(q=>{
+let d=document.createElement('div');
+d.className='entry';
+d.textContent=q.title+' — '+q.subject+' — '+(q.published?'Published':'Draft');
+
+let b=document.createElement('button');
+b.className='alt';
+b.textContent=q.published?'Unpublish':'Publish';
+
+b.onclick=async()=>{
+let u=await db.from('mican_quizzes').update({
+published:!q.published
+}).eq('id',q.id);
+
+if(u.error)alert(u.error.message);
+else loadAdminQuizzes();
+};
+
+d.append(b);
+$('adminQuizList').append(d);
+});
+}
+
+async function selectAdminQuiz(){
+$('questionEditor').classList.toggle('hidden',!$('adminQuizSelect').value);
+}
+
+async function addQuizQuestion(){
+let quiz_id=$('adminQuizSelect').value;
+let promptText=$('quizPrompt').value.trim();
+let a=$('optA').value.trim();
+let b=$('optB').value.trim();
+let c=$('optC').value.trim();
+let d=$('optD').value.trim();
+let correct_option=$('correctOption').value;
+let explanation=$('quizExplanation').value.trim();
+
+if(!quiz_id||!promptText||!a||!b||!c||!d){
+alert('Complete the question and all four options.');
+return;
+}
+
+let old=await db.from('mican_quiz_questions')
+.select('position')
+.eq('quiz_id',quiz_id)
+.order('position',{ascending:false})
+.limit(1);
+
+let pos=(old.data&&old.data[0]?old.data[0].position:0)+1;
+
+let q=await db.from('mican_quiz_questions').insert({
+quiz_id,
+prompt:promptText,
+option_a:a,
+option_b:b,
+option_c:c,
+option_d:d,
+position:pos,
+explanation
+}).select().single();
+
+if(q.error){
+alert(q.error.message);
+return;
+}
+
+let k=await db.from('mican_quiz_answer_keys').insert({
+question_id:q.data.id,
+correct_option
+});
+
+if(k.error){
+alert('Question saved but answer key failed: '+k.error.message);
+return;
+}
+
+['quizPrompt','optA','optB','optC','optD','quizExplanation'].forEach(id=>$(id).value='');
+
+alert('Question and solution saved.');
+}
+
+async function loadQuizResults(){
+let r=await db.from('mican_quiz_attempts')
+.select('participant_name,quiz_id,score,total,submitted_at')
+.order('submitted_at',{ascending:false})
+.limit(200);
+
+if(r.error){
+alert(r.error.message);
+return;
+}
+
+let quizzes=await db.from('mican_quizzes').select('id,title');
+let titles=Object.fromEntries((quizzes.data||[]).map(q=>[q.id,q.title]));
+
+$('quizResults').replaceChildren();
+
+if(!r.data.length){
+$('quizResults').textContent='No submitted quizzes yet.';
+return;
+}
+
+r.data.forEach(x=>{
+let d=document.createElement('div');
+d.className='entry';
+
+let pct=x.total?Math.round(x.score/x.total*100):0;
+
+d.textContent=(x.participant_name||'Participant')+
+' · '+(titles[x.quiz_id]||'Quiz')+
+' · '+x.score+'/'+x.total+
+' ('+pct+'%) · '+new Date(x.submitted_at).toLocaleString();
+
+$('quizResults').append(d);
+});
+}
+
+async function loadActivity(){
+let r=await db.from('mican_activity')
+.select('*')
+.order('created_at',{ascending:false})
+.limit(250);
+
+if(r.error)return;
+
+let a=r.data||[];
+let q=a.filter(x=>x.activity_type==='question');
+let f=a.filter(x=>x.activity_type==='feedback');
+
+$('qCount').textContent=q.length;
+$('yesCount').textContent=f.filter(x=>x.feedback==='helpful').length;
+$('noCount').textContent=f.filter(x=>x.feedback==='not_helpful').length;
+
+let unknown=q.filter(x=>!replies.some(y=>norm(y.question)===norm(x.question)));
+
+$('inbox').replaceChildren();
+
+unknown.forEach(x=>{
+let b=document.createElement('button');
+b.className='alt';
+b.textContent=x.question;
+
+b.onclick=()=>{
+$('savedQuestion').value=x.question;
+$('savedAnswer').focus();
+};
+
+$('inbox').append(b);
+});
+}
+
 async function logout(){
- await db.auth.signOut();
- document.getElementById("adminPanel").classList.add("hidden");
- document.getElementById("adminLogin").classList.remove("hidden");
- document.getElementById("password").value="";
- alert("Logged out.");
+await db.auth.signOut();
+$('adminPanel').classList.add('hidden');
+$('loginBox').classList.remove('hidden');
 }
 
-/* START */
-async function startMican(){
- showHistory();
- await loadReplies();
+function showSubjects(){
+$('subjects').replaceChildren();
+
+subjects.forEach(s=>{
+let b=document.createElement('button');
+b.textContent=s;
+b.onclick=()=>showQuizzes(s);
+$('subjects').append(b);
+});
 }
-startMican();
+
+async function showQuizzes(s){
+$('quizList').replaceChildren();
+$('quizRun').replaceChildren();
+
+let h=document.createElement('h3');
+h.textContent=s+' quizzes';
+$('quizList').append(h);
+
+let r=await db.from('mican_quizzes')
+.select('id,title,duration_minutes')
+.eq('subject',s)
+.eq('published',true);
+
+if(r.error){
+$('quizList').append('Quiz database setup is required.');
+return;
+}
+
+if(!r.data.length){
+$('quizList').append('No published quizzes yet.');
+return;
+}
+
+r.data.forEach(q=>{
+let b=document.createElement('button');
+b.className='alt';
+b.textContent=q.title+' ('+q.duration_minutes+' min)';
+b.onclick=()=>startQuiz(q);
+$('quizList').append(b);
+});
+}
+
+async function startQuiz(q){
+let participant=prompt('Enter your name before starting the quiz:');
+
+if(!participant||!participant.trim())return;
+
+quizNow=q;
+quizNow.participantName=participant.trim().slice(0,80);
+
+let r=await db.rpc('mican_start_quiz',{p_quiz_id:q.id});
+
+if(r.error){
+alert(r.error.message);
+return;
+}
+
+quizQs=r.data.questions||[];
+
+// Shuffle question order separately for each participant.
+for(let i=quizQs.length-1;i>0;i--){
+let j=Math.floor(Math.random()*(i+1));
+[quizQs[i],quizQs[j]]=[quizQs[j],quizQs[i]];
+}
+
+quizAnswers={};
+quizPos=0;
+quizSecs=q.duration_minutes*60;
+
+drawQuiz();
+clearInterval(quizTimer);
+
+quizTimer=setInterval(()=>{
+quizSecs--;
+$('clock').textContent=quizSecs+' seconds remaining';
+if(quizSecs<=0)submitQuiz();
+},1000);
+}
+
+function drawQuiz(){
+let q=quizQs[quizPos];
+if(!q)return;
+
+$('quizRun').innerHTML=
+'<h3>'+safe(quizNow.title)+'</h3>'+
+'<p id="clock">'+quizSecs+' seconds remaining</p>'+
+'<p>Question '+(quizPos+1)+' of '+quizQs.length+'</p>'+
+'<h3>'+safe(q.prompt)+'</h3>'+
+'<div id="opts"></div>'+
+'<div class="row">'+
+'<button class="alt" onclick="moveQ(-1)">Previous</button>'+
+'<button onclick="moveQ(1)">Next</button>'+
+'</div>'+
+'<button onclick="submitQuiz()">Submit quiz</button>';
+
+['a','b','c','d'].forEach(k=>{
+let b=document.createElement('button');
+b.className='alt';
+b.style.display='block';
+b.style.width='100%';
+b.textContent=k.toUpperCase()+'. '+q['option_'+k];
+
+b.onclick=()=>{
+quizAnswers[q.id]=k.toUpperCase();
+drawQuiz();
+};
+
+if(quizAnswers[q.id]===k.toUpperCase()){
+b.style.outline='2px solid var(--cyan)';
+}
+
+$('opts').append(b);
+});
+}
+
+function moveQ(n){
+quizPos=Math.max(0,Math.min(quizQs.length-1,quizPos+n));
+drawQuiz();
+}
+
+async function submitQuiz(){
+if(!quizNow)return;
+
+clearInterval(quizTimer);
+
+let answers={
+...quizAnswers,
+__participant_name:quizNow.participantName
+};
+
+let r=await db.rpc('mican_submit_quiz',{
+p_quiz_id:quizNow.id,
+p_answers:answers
+});
+
+if(r.error){
+alert(r.error.message);
+return;
+}
+
+let result=r.data||{};
+let pct=result.total?Math.round(result.score/result.total*100):0;
+
+let root=$('quizRun');
+root.replaceChildren();
+
+let h=document.createElement('h2');
+h.textContent='Quiz submitted successfully';
+root.append(h);
+
+let score=document.createElement('h2');
+score.textContent='Your score: '+result.score+'/'+result.total+' ('+pct+'%)';
+root.append(score);
+
+let note=document.createElement('p');
+note.className='muted';
+note.textContent='Your answers and the uploaded solutions are shown below.';
+root.append(note);
+
+(result.review||[]).forEach((item,i)=>{
+let box=document.createElement('div');
+box.className='entry';
+
+let q=document.createElement('b');
+q.textContent=(i+1)+'. '+item.question;
+box.append(q);
+
+let chosen=document.createElement('p');
+chosen.textContent='Your answer: '+(item.selected||'Not answered')+
+' — '+(item.selected?item.options[item.selected]||'':'');
+box.append(chosen);
+
+let correct=document.createElement('p');
+correct.textContent='Correct answer: '+item.correct+'. '+(item.options[item.correct]||'');
+box.append(correct);
+
+let status=document.createElement('p');
+status.textContent=item.is_correct?'Correct ✓':'Incorrect';
+status.style.fontWeight='bold';
+box.append(status);
+
+if(item.explanation){
+let exp=document.createElement('p');
+exp.textContent='Solution: '+item.explanation;
+box.append(exp);
+}
+
+root.append(box);
+});
+
+let back=document.createElement('button');
+back.className='alt';
+back.textContent='Back to subjects';
+back.onclick=()=>{
+quizNow=null;
+showSubjects();
+};
+
+root.append(back);
+quizNow=null;
+}
+
+function safe(s){
+return String(s||'').replace(/[&<>"']/g,c=>({
+'&':'&amp;',
+'<':'&lt;',
+'>':'&gt;',
+'"':'&quot;',
+"'":'&#39;'
+}[c]));
+}
+
+async function boot(){
+setTheme(localStorage.getItem('micanTheme')||'dark');
+await loadReplies();
+add("Hello! 👋 I'm MICAN AI. How can I help you today?",'bot',false);
+
+if(location.hash==='#admin'){
+$('adminSection').classList.remove('hidden');
+}
+}
+
+window.addEventListener('hashchange',()=>
+$('adminSection').classList.toggle('hidden',location.hash!=='#admin')
+);
+
+boot();
 </script>
 </body>
 </html>
